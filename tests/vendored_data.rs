@@ -104,17 +104,20 @@ fn gpkg_magic_header_present() {
     // with the 16-byte ASCII string "SQLite format 3\0". This is a cheap
     // sanity check that file content wasn't replaced by a different format
     // (e.g. a JSON placeholder, a text README, or a corrupted truncation).
+    // Only the first 16 bytes are needed — reading the whole multi-MB file
+    // would be wasteful given `sha256_matches_readme_and_pinned_values`
+    // already covers full-content integrity.
+    use std::io::Read;
     const SQLITE_MAGIC: &[u8] = b"SQLite format 3\0";
     for (name, _, _) in VENDORED {
         let p = vendor_dir().join(name);
-        let bytes = fs::read(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
-        assert!(
-            bytes.len() >= SQLITE_MAGIC.len(),
-            "{name} truncated below SQLite header length"
-        );
+        let mut head = [0u8; SQLITE_MAGIC.len()];
+        let mut f = fs::File::open(&p).unwrap_or_else(|e| panic!("open {}: {e}", p.display()));
+        f.read_exact(&mut head).unwrap_or_else(|e| {
+            panic!("{name} truncated below SQLite header length: {e}")
+        });
         assert_eq!(
-            &bytes[..SQLITE_MAGIC.len()],
-            SQLITE_MAGIC,
+            &head, SQLITE_MAGIC,
             "{name} does not start with SQLite/GeoPackage magic header"
         );
     }
@@ -323,7 +326,7 @@ fn cargo_toml_has_no_runtime_dependencies() {
 /// Return the body (between the header line and the next top-level `[section]`
 /// or EOF) of a TOML table by exact name. Returns `None` if absent.
 fn extract_toml_table<'a>(text: &'a str, name: &str) -> Option<&'a str> {
-    let header = format!("[{}]", name);
+    let header = format!("[{name}]");
     let start = text.find(&header)?;
     let after = &text[start + header.len()..];
     let body_start = after.find('\n').map(|i| i + 1).unwrap_or(0);
