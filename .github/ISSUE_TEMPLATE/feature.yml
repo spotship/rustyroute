@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a new capability or enhancement for rustyroute.
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing an improvement. Please focus on the problem
+        you are trying to solve and the desired behaviour.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or developer problem should this solve?
+      placeholder: Describe the need, not just a preferred implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should rustyroute do?
+      placeholder: Describe the desired API, behaviour, or documentation change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, workarounds, or existing crates considered.
+    validations:
+      required: false
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope notes
+      description: Data, licensing, compatibility, MSRV, or performance constraints.
+    validations:
+      required: false
