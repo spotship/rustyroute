@@ -1,0 +1,15 @@
+[package]
+name = "rustyroute"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93.0"
+description = "Maritime sea-routing library for Rust."
+readme = "README.md"
+homepage = "https://github.com/spotship/rustyroute"
+repository = "https://github.com/spotship/rustyroute"
+documentation = "https://docs.rs/rustyroute"
+license = "EUPL-1.2"
+keywords = ["routing", "maritime", "searoute", "geospatial", "shipping"]
+categories = ["algorithms", "science::geo"]
+
+[dependencies]

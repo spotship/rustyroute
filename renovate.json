@@ -1,0 +1,50 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "timezone": "UTC",
+  "schedule": ["before 4am on Monday"],
+  "dependencyDashboard": true,
+  "baseBranches": ["main"],
+  "rangeStrategy": "bump",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 4am on Monday"]
+  },
+  "separateMajorMinor": true,
+  "packageRules": [
+    {
+      "description": "Keep spotship/.github reusable workflow uses on main; never hash-pin",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["spotship/.github"],
+      "pinDigests": false
+    },
+    {
+      "description": "Group patch+minor per ecosystem",
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "non-major dependencies ({{{datasource}}})"
+    },
+    {
+      "description": "Patch cooldown: 3 days",
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Minor cooldown: 10 days",
+      "matchUpdateTypes": ["minor"],
+      "minimumReleaseAge": "10 days"
+    },
+    {
+      "description": "Major version cooldown: 30 days",
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "30 days"
+    }
+  ]
+}

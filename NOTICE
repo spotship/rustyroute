@@ -1,0 +1,25 @@
+rustyroute
+Copyright (c) 2026 Spot Ship
+
+This project is licensed under the European Union Public Licence v. 1.2
+(EUPL-1.2). See the LICENSE file for the full text.
+
+Upstream attribution
+--------------------
+
+rustyroute is based on and inspired by Eurostat's SeaRoute project:
+
+    https://github.com/eurostat/searoute
+    Maven coordinates: eu.europa.ec.eurostat:searoute-core
+    Copyright (c) European Union, Eurostat
+    Licensed under EUPL-1.2
+
+Eurostat's SeaRoute maritime routing network (graph data derived from
+shipping lanes and enriched with AIS data) and its shortest-path
+algorithmic approach (Dijkstra over the maritime graph) inform this
+project.
+
+This repository does not vendor Eurostat graph data in the initial
+skeleton. When upstream data or code is introduced in future commits,
+this NOTICE will be updated to reflect the precise nature of the
+derivative work, in line with EUPL-1.2 Article 5 (attribution rights).
