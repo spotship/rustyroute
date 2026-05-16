@@ -3,6 +3,12 @@
 **/*.rs.bk
 *.pdb
 
+# rustyroute is a library crate (no [[bin]], no published binary).
+# Per Cargo's guidance for libraries, Cargo.lock is not committed so that
+# downstream consumers resolve their own dependency versions:
+# https://doc.rust-lang.org/cargo/faq.html#why-do-binaries-have-cargolock-in-version-control-but-not-libraries
+/Cargo.lock
+
 # macOS — https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
 .DS_Store
 .AppleDouble
