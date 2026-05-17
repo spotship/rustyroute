@@ -30,8 +30,13 @@
 //! - rkyv 0.8 uses little-endian for all primitive types.
 //! - rkyv writes 16-byte aligned roots; the 8-byte prefix preserves
 //!   relative-offset correctness inside the rkyv payload.
-//! - `SCHEMA_VERSION` is bumped on any incompatible field change. Adding
-//!   a new optional `Vec` field at the end is NOT incompatible.
+//! - `SCHEMA_VERSION` MUST be bumped on any change to a struct that
+//!   derives `rkyv::Archive` (adding, removing, renaming, or reordering
+//!   fields, or changing a field's type). rkyv stores fields at fixed
+//!   relative offsets within the archived root, so any such change
+//!   shifts the on-disk layout and breaks older archives. There is no
+//!   "append-only safe" rule — treat every field change as breaking
+//!   until a real versioning/migration story is in place.
 
 /// Magic prefix written to every `.rkyv` file before the rkyv payload.
 pub const MAGIC: &[u8; 4] = b"RRG1";

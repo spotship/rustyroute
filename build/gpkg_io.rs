@@ -1,6 +1,8 @@
-//! GeoPackage SQLite reader. Depends on `rusqlite` which is a
-//! `[build-dependencies]` only, so this file is compiled exclusively
-//! into the build script — never into a test/lib crate.
+//! GeoPackage SQLite reader. Depends on `rusqlite`, declared under
+//! both `[build-dependencies]` (for `build.rs`) and `[dev-dependencies]`
+//! (so `tests/tampered_gpkg_panic.rs` can re-include this module via
+//! `#[path]` and drive the real reader against a tampered `.gpkg`
+//! copy). This file is never compiled into the library crate.
 
 use crate::build::geometry::parse_gpb_linestring;
 use crate::build::gpkg::RawEdge;
