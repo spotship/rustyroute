@@ -106,7 +106,10 @@ pub fn build_csr(raw: &[RawEdge]) -> CsrBuilt {
     assert_eq!(node_offsets.len(), nodes.len() + 1);
     assert_eq!(*node_offsets.last().unwrap() as usize, edges.len());
     for e in &edges {
-        assert!((e.target as usize) < nodes.len(), "edge target out of range");
+        assert!(
+            (e.target as usize) < nodes.len(),
+            "edge target out of range"
+        );
     }
 
     CsrBuilt {

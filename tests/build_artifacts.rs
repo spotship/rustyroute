@@ -168,8 +168,7 @@ fn csr_structural_invariants() {
             archived.nodes.len() + 1,
             "{n}km: node_offsets length"
         );
-        let last_native =
-            archived.node_offsets[archived.node_offsets.len() - 1].to_native();
+        let last_native = archived.node_offsets[archived.node_offsets.len() - 1].to_native();
         assert_eq!(
             last_native as usize,
             archived.edges.len(),
@@ -178,10 +177,7 @@ fn csr_structural_invariants() {
         let n_nodes = archived.nodes.len() as u32;
         for e in archived.edges.iter() {
             let t = e.target.to_native();
-            assert!(
-                t < n_nodes,
-                "{n}km: edge target {t} out of range {n_nodes}"
-            );
+            assert!(t < n_nodes, "{n}km: edge target {t} out of range {n_nodes}");
         }
     }
 }
@@ -192,7 +188,10 @@ fn rkyv_format_docstring_present() {
     // We check the literal file rather than rustdoc output to avoid a
     // rustdoc build step inside the test.
     let src = std::fs::read_to_string("src/graph.rs").expect("read src/graph.rs");
-    assert!(src.contains("//! On-disk schema"), "missing module-level doc");
+    assert!(
+        src.contains("//! On-disk schema"),
+        "missing module-level doc"
+    );
     assert!(src.contains("MAGIC"), "module doc missing MAGIC reference");
     assert!(
         src.contains("SCHEMA_VERSION"),

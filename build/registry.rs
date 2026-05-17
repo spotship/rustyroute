@@ -23,8 +23,8 @@ pub fn write_edge_groups_rs(out_dir: &Path) -> Result<(), String> {
     s.push_str(&format!("    \"{MENAI_NAME}\",\n"));
     s.push_str("];\n");
 
-    let mut f = std::fs::File::create(&path)
-        .map_err(|e| format!("create {}: {e}", path.display()))?;
+    let mut f =
+        std::fs::File::create(&path).map_err(|e| format!("create {}: {e}", path.display()))?;
     f.write_all(s.as_bytes())
         .map_err(|e| format!("write {}: {e}", path.display()))?;
     Ok(())

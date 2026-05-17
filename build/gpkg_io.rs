@@ -31,8 +31,7 @@ pub fn iter_edges(path: &Path) -> Result<Vec<RawEdge>, String> {
     let mut out = Vec::new();
     for r in rows {
         let (fid, blob, pass) = r.map_err(|e| format!("row: {e}"))?;
-        let points =
-            parse_gpb_linestring(&blob).map_err(|e| format!("parse fid={fid}: {e}"))?;
+        let points = parse_gpb_linestring(&blob).map_err(|e| format!("parse fid={fid}: {e}"))?;
         if points.len() < 2 {
             panic!("build.rs: fid={fid} has <2 points; expected LineString");
         }

@@ -1,16 +1,16 @@
 //! Unit tests for build/groups.rs — exercises the empty-group panic
 //! and the pass-tag-to-public-name mapping with synthetic inputs.
 
+#[path = "../build/csr.rs"]
+pub mod csr;
 #[path = "../build/geometry.rs"]
 pub mod geometry;
 #[path = "../build/gpkg.rs"]
 pub mod gpkg;
-#[path = "../build/csr.rs"]
-pub mod csr;
-#[path = "../build/groups.rs"]
-mod groups;
 #[path = "../src/graph.rs"]
 pub mod graph;
+#[path = "../build/groups.rs"]
+mod groups;
 
 // The four modules above all need each other; the `#[path]` imports
 // wire them into this test crate's namespace. Inside groups.rs the

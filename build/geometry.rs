@@ -49,8 +49,7 @@ pub fn parse_gpb_linestring(blob: &[u8]) -> Result<Vec<(f64, f64)>, String> {
     if wkb_type != 2 {
         return Err(format!("expected LineString (type=2), got {wkb_type}"));
     }
-    let npts =
-        u32::from_be_bytes(blob[wkb_off + 5..wkb_off + 9].try_into().unwrap()) as usize;
+    let npts = u32::from_be_bytes(blob[wkb_off + 5..wkb_off + 9].try_into().unwrap()) as usize;
     let coord_off = wkb_off + 9;
     let need = coord_off + npts * 16;
     if blob.len() < need {
@@ -70,13 +69,13 @@ pub fn haversine_km(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
     let (lat1_r, lat2_r) = (lat1.to_radians(), lat2.to_radians());
     let dlat = (lat2 - lat1).to_radians();
     let dlng = (lng2 - lng1).to_radians();
-    let a = (dlat / 2.0).sin().powi(2)
-        + lat1_r.cos() * lat2_r.cos() * (dlng / 2.0).sin().powi(2);
+    let a = (dlat / 2.0).sin().powi(2) + lat1_r.cos() * lat2_r.cos() * (dlng / 2.0).sin().powi(2);
     2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
 }
 
 /// Polyline-summed haversine: cumulative distance along consecutive
 /// vertex pairs.
+#[allow(dead_code)] // used by build/csr.rs; not by every test #[path] re-include
 pub fn polyline_length_km(points: &[(f64, f64)]) -> f64 {
     points
         .windows(2)
@@ -87,6 +86,7 @@ pub fn polyline_length_km(points: &[(f64, f64)]) -> f64 {
 /// Liang-Barsky line-vs-AABB intersection test. Returns true iff the
 /// segment from (p0x,p0y) to (p1x,p1y) intersects the axis-aligned
 /// bounding box [xmin,xmax] × [ymin,ymax] (closed).
+#[allow(clippy::too_many_arguments)]
 pub fn liang_barsky_intersects(
     p0x: f64,
     p0y: f64,
@@ -135,6 +135,7 @@ pub fn liang_barsky_intersects(
 }
 
 /// True iff any segment of `points` intersects the bbox.
+#[allow(dead_code)] // used by build/groups.rs; not by every test #[path] re-include
 pub fn polyline_intersects_bbox(
     points: &[(f64, f64)],
     xmin: f64,
@@ -142,9 +143,9 @@ pub fn polyline_intersects_bbox(
     ymin: f64,
     ymax: f64,
 ) -> bool {
-    points.windows(2).any(|w| {
-        liang_barsky_intersects(w[0].0, w[0].1, w[1].0, w[1].1, xmin, xmax, ymin, ymax)
-    })
+    points
+        .windows(2)
+        .any(|w| liang_barsky_intersects(w[0].0, w[0].1, w[1].0, w[1].1, xmin, xmax, ymin, ymax))
 }
 
 // Tests for this module live in `tests/build_helpers.rs` (see Task 4

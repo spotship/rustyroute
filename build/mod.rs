@@ -1,17 +1,17 @@
 //! Top-level build orchestration. ENG-4678.
 
+#[path = "archive.rs"]
+pub mod archive;
+#[path = "csr.rs"]
+pub mod csr;
+#[path = "geometry.rs"]
+pub mod geometry;
 #[path = "gpkg.rs"]
 pub mod gpkg;
 #[path = "gpkg_io.rs"]
 pub mod gpkg_io;
-#[path = "geometry.rs"]
-pub mod geometry;
-#[path = "csr.rs"]
-pub mod csr;
 #[path = "groups.rs"]
 pub mod groups;
-#[path = "archive.rs"]
-pub mod archive;
 #[path = "registry.rs"]
 pub mod registry;
 
@@ -49,12 +49,9 @@ pub fn run() {
     std::fs::create_dir_all(out_dir.join("data")).expect("create OUT_DIR/data");
 
     for n in RESOLUTIONS {
-        let gpkg = manifest_dir.join(format!(
-            "vendor/eurostat-marnet/marnet_plus_{}km.gpkg",
-            n
-        ));
-        let raw_edges = gpkg_io::iter_edges(&gpkg)
-            .unwrap_or_else(|e| panic!("read {}: {e}", gpkg.display()));
+        let gpkg = manifest_dir.join(format!("vendor/eurostat-marnet/marnet_plus_{}km.gpkg", n));
+        let raw_edges =
+            gpkg_io::iter_edges(&gpkg).unwrap_or_else(|e| panic!("read {}: {e}", gpkg.display()));
         let csr_built = csr::build_csr(&raw_edges);
         let group_vec = groups::assign_groups(&raw_edges, &csr_built, *n);
         let graph = csr_built.into_graph_with_groups(group_vec);

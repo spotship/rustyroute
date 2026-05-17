@@ -5,10 +5,12 @@
 
 A Rust library for shortest-path maritime route computation.
 
-> **Status: pre-API skeleton.** This repository was bootstrapped with
-> legal, governance, and packaging metadata only. Routing code, graph
-> data, build scripts, and CI workflows are intentionally not included
-> yet — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the scope policy.
+> **Status: pre-API skeleton.** This repository contains the EUPL-1.2
+> legal/governance scaffolding, the vendored Eurostat MARNET data, and
+> a `build.rs` that compiles the MARNET GeoPackages into rkyv graph
+> archives at build time. Public routing APIs (`Graph::load`,
+> Dijkstra, distance matrices) will be introduced in follow-up tickets
+> — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the scope policy.
 
 ## Installation
 
