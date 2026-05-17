@@ -26,6 +26,13 @@ pub fn parse_gpb_linestring(blob: &[u8]) -> Result<Vec<(f64, f64)>, String> {
                     got little-endian flag bit. Re-vendor or update parser."
             .into());
     }
+    if (flags & 0x10) != 0 {
+        // Empty-geometry flag: WKB body may be absent or carry a zero
+        // point count. Reject up-front so the caller gets a clear,
+        // deterministic error instead of an opaque "blob too short" or
+        // empty point list further down.
+        return Err("GPB empty flag set; expected non-empty LineString".into());
+    }
     let env_indicator = ((flags >> 1) & 0x07) as usize;
     let env_floats: usize = match env_indicator {
         0 => 0,

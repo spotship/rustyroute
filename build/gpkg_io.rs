@@ -35,7 +35,10 @@ pub fn iter_edges(path: &Path) -> Result<Vec<RawEdge>, String> {
         let (fid, blob, pass) = r.map_err(|e| format!("row: {e}"))?;
         let points = parse_gpb_linestring(&blob).map_err(|e| format!("parse fid={fid}: {e}"))?;
         if points.len() < 2 {
-            panic!("build.rs: fid={fid} has <2 points; expected LineString");
+            return Err(format!(
+                "fid={fid}: LineString has {} point(s); expected >=2",
+                points.len()
+            ));
         }
         out.push(RawEdge { fid, pass, points });
     }
