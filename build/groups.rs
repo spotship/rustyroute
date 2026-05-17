@@ -72,24 +72,21 @@ pub fn assign_groups(raw: &[RawEdge], csr: &CsrBuilt, res_km: u32) -> Vec<GroupE
         }
     }
 
-    // Build GroupEntry list in fixed order.
+    // Build GroupEntry list in fixed order: 12 pass-tag groups then menai.
+    let names = PASS_GROUPS
+        .iter()
+        .map(|(_, public)| *public)
+        .chain(std::iter::once(MENAI_NAME));
     let mut out: Vec<GroupEntry> = Vec::with_capacity(PASS_GROUPS.len() + 1);
-    for (i, (_tag, public)) in PASS_GROUPS.iter().enumerate() {
+    for (i, name) in names.enumerate() {
         let mut ids = std::mem::take(&mut buckets[i]);
         ids.sort_unstable();
         ids.dedup();
         out.push(GroupEntry {
-            name: (*public).to_string(),
+            name: name.to_string(),
             edge_ids: ids,
         });
     }
-    let mut menai_ids = std::mem::take(&mut buckets[PASS_GROUPS.len()]);
-    menai_ids.sort_unstable();
-    menai_ids.dedup();
-    out.push(GroupEntry {
-        name: MENAI_NAME.to_string(),
-        edge_ids: menai_ids,
-    });
 
     // (c) Non-empty assertions.
     for (i, g) in out.iter().enumerate() {
