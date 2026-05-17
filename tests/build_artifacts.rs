@@ -18,8 +18,21 @@ use rustyroute::graph::{ArchivedGraph, MAGIC, SCHEMA_VERSION};
 
 const RESOLUTIONS: &[u32] = &[5, 10, 20, 50, 100];
 
-fn archive_bytes(res_km: u32) -> Vec<u8> {
-    rustyroute::archive_bytes_for_test(res_km).to_vec()
+// The five `.rkyv` archives are embedded into this integration-test
+// binary only — never into the published `rustyroute` library — so
+// downstream consumers don't pay for ~MB of test fixtures in their
+// dependency graph. `OUT_DIR` is set for every compile unit of this
+// package, including integration tests, so `include_bytes!` resolves
+// the same paths `build.rs` writes.
+fn archive_bytes(res_km: u32) -> &'static [u8] {
+    match res_km {
+        5 => include_bytes!(concat!(env!("OUT_DIR"), "/data/5km.rkyv")),
+        10 => include_bytes!(concat!(env!("OUT_DIR"), "/data/10km.rkyv")),
+        20 => include_bytes!(concat!(env!("OUT_DIR"), "/data/20km.rkyv")),
+        50 => include_bytes!(concat!(env!("OUT_DIR"), "/data/50km.rkyv")),
+        100 => include_bytes!(concat!(env!("OUT_DIR"), "/data/100km.rkyv")),
+        _ => panic!("unknown resolution: {res_km}"),
+    }
 }
 
 #[test]

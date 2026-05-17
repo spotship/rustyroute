@@ -11,19 +11,3 @@
 pub mod graph;
 
 include!(concat!(env!("OUT_DIR"), "/edge_groups.rs"));
-
-/// Returns the bytes of the on-disk archive for one resolution.
-///
-/// This is a test-only / experimental helper. The eventual
-/// `Graph::load` API will be the supported way to access archives.
-#[doc(hidden)]
-pub fn archive_bytes_for_test(res_km: u32) -> &'static [u8] {
-    match res_km {
-        5 => include_bytes!(concat!(env!("OUT_DIR"), "/data/5km.rkyv")),
-        10 => include_bytes!(concat!(env!("OUT_DIR"), "/data/10km.rkyv")),
-        20 => include_bytes!(concat!(env!("OUT_DIR"), "/data/20km.rkyv")),
-        50 => include_bytes!(concat!(env!("OUT_DIR"), "/data/50km.rkyv")),
-        100 => include_bytes!(concat!(env!("OUT_DIR"), "/data/100km.rkyv")),
-        _ => panic!("unknown resolution: {res_km}"),
-    }
-}
