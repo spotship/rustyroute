@@ -1,13 +1,15 @@
 //! Integration tests that lock in the vendored Eurostat MARNET GeoPackage
 //! files and their attribution paperwork. These exist because the data IS
-//! the contract for ENG-4677 — a future `build.rs` and downstream consumers
-//! depend on these exact bytes. If a refactor accidentally modifies, renames,
-//! or removes a vendored file, or if attribution paperwork drifts out of sync,
-//! these tests fail loudly.
+//! the contract for ENG-4677 — the `build.rs` introduced in ENG-4678 and
+//! downstream consumers depend on these exact bytes. If a refactor
+//! accidentally modifies, renames, or removes a vendored file, or if
+//! attribution paperwork drifts out of sync, these tests fail loudly.
 //!
-//! No new runtime dependencies are introduced — SHA-256 is implemented inline
-//! per FIPS 180-4 because the ticket forbids adding `Cargo.toml` deps. The
-//! implementation lives only in `tests/` and is not compiled into the crate.
+//! No new runtime dependencies are introduced by THIS file — SHA-256 is
+//! implemented inline per FIPS 180-4 because the ENG-4677 ticket forbade
+//! adding `Cargo.toml` deps. The implementation lives only in `tests/`
+//! and is not compiled into the crate. ENG-4678 has since added runtime
+//! deps for the graph build; the inline SHA-256 stays for hermeticity.
 //!
 //! Acceptance criteria mapping (see `.ship/tasks/eng-4677-.../plan/spec.md`):
 //!   AC1: file presence + filenames        -> `files_exist_with_expected_names`
@@ -22,7 +24,6 @@
 //!
 //! Supporting / sanity checks (not tied to a numbered AC):
 //!   format sanity for .gpkg bytes  -> `gpkg_magic_header_present`
-//!   no new runtime deps invariant  -> `cargo_toml_has_no_runtime_dependencies`
 //!   self-tests for inline SHA-256  -> `sha256_known_answer_empty`,
 //!                                     `sha256_known_answer_abc`,
 //!                                     `sha256_known_answer_longer`
@@ -322,72 +323,6 @@ fn no_git_lfs_for_vendored_data() {
             "{name} appears to be a Git LFS pointer stub — AC6 forbids LFS"
         );
     }
-}
-
-#[test]
-fn cargo_toml_has_no_runtime_dependencies() {
-    // Spec non-goal: "Do not introduce any new Rust dependencies in
-    // Cargo.toml." The skeleton has zero deps; this test pins that
-    // invariant until a follow-up ticket explicitly authorizes adding one.
-    // If this fails, it means someone added a runtime dep without the
-    // proper ticket — back out the dep or update the ticket.
-    let path = repo_root().join("Cargo.toml");
-    let text = fs::read_to_string(&path).expect("read Cargo.toml");
-
-    // A missing `[dependencies]` table is equivalent to an empty one for the
-    // purposes of this invariant — a library crate with zero runtime deps may
-    // legitimately omit the section, or use only `[dev-dependencies]`.
-    let deps = extract_toml_table(&text, "dependencies").unwrap_or("");
-    let non_empty = deps
-        .lines()
-        .filter(|l| {
-            let t = l.trim();
-            !t.is_empty() && !t.starts_with('#')
-        })
-        .count();
-    assert_eq!(
-        non_empty, 0,
-        "Cargo.toml [dependencies] section is no longer empty; \
-         ENG-4677 forbids new runtime deps. Contents:\n{deps}"
-    );
-
-    // Also reject sub-table dependency declarations like `[dependencies.serde]`.
-    // `extract_toml_table` only matches the exact `[dependencies]` header, so a
-    // future contributor adding a runtime dep via the sub-table form would
-    // otherwise slip past this guard and silently violate the AC6 invariant.
-    let subtable_headers: Vec<&str> = text
-        .lines()
-        .map(str::trim)
-        .filter(|l| l.starts_with("[dependencies."))
-        .collect();
-    assert!(
-        subtable_headers.is_empty(),
-        "Cargo.toml declares sub-table runtime dep(s); \
-         ENG-4677 forbids new runtime deps. Headers found:\n{}",
-        subtable_headers.join("\n")
-    );
-}
-
-/// Return the body (between the header line and the next top-level `[section]`
-/// or EOF) of a TOML table by exact name. Returns `None` if absent.
-fn extract_toml_table<'a>(text: &'a str, name: &str) -> Option<&'a str> {
-    let header = format!("[{name}]");
-    let start = text.find(&header)?;
-    let after = &text[start + header.len()..];
-    let body_start = after.find('\n').map(|i| i + 1).unwrap_or(0);
-    let body = &after[body_start..];
-    let end = body
-        .match_indices('\n')
-        .find_map(|(i, _)| {
-            let next = &body[i + 1..];
-            if next.starts_with('[') {
-                Some(i + 1)
-            } else {
-                None
-            }
-        })
-        .unwrap_or(body.len());
-    Some(&body[..end])
 }
 
 // -----------------------------------------------------------------------------
