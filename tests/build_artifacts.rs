@@ -205,8 +205,12 @@ fn csr_structural_invariants() {
 fn rkyv_format_docstring_present() {
     // AC: "rkyv file format documented in module-level doc comment."
     // We check the literal file rather than rustdoc output to avoid a
-    // rustdoc build step inside the test.
-    let src = std::fs::read_to_string("src/graph.rs").expect("read src/graph.rs");
+    // rustdoc build step inside the test. Build the path from
+    // CARGO_MANIFEST_DIR so the test doesn't depend on the test binary's
+    // current working directory.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/graph.rs");
+    let src =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     assert!(
         src.contains("//! On-disk schema"),
         "missing module-level doc"
