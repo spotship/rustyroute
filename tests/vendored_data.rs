@@ -19,6 +19,13 @@
 //!   (AC5 — `cargo build` succeeds — is implicit: this test crate only
 //!    compiles + runs if the workspace builds. CI's `cargo build --offline`
 //!    covers the offline part.)
+//!
+//! Supporting / sanity checks (not tied to a numbered AC):
+//!   format sanity for .gpkg bytes  -> `gpkg_magic_header_present`
+//!   no new runtime deps invariant  -> `cargo_toml_has_no_runtime_dependencies`
+//!   self-tests for inline SHA-256  -> `sha256_known_answer_empty`,
+//!                                     `sha256_known_answer_abc`,
+//!                                     `sha256_known_answer_longer`
 
 use std::fs;
 use std::path::PathBuf;
@@ -169,19 +176,27 @@ fn readme_documents_required_provenance() {
         "README must state files are unmodified / byte-for-byte (AC3)"
     );
 
-    // AC3: download date — look for any ISO-8601-ish date (YYYY-MM-DD).
+    // AC3: download date — look for an ISO-8601 calendar date YYYY-MM-DD with
+    // a plausible 21st-century year and a real month/day range. A pure shape
+    // check (`/^\d{4}-\d{2}-\d{2}$/`) would happily accept `9999-99-99` and
+    // give false confidence that a real date was recorded.
     let has_iso_date = readme.split_whitespace().any(|tok| {
         let t = tok.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-');
-        t.len() == 10
-            && &t[4..5] == "-"
-            && &t[7..8] == "-"
-            && t[..4].chars().all(|c| c.is_ascii_digit())
-            && t[5..7].chars().all(|c| c.is_ascii_digit())
-            && t[8..10].chars().all(|c| c.is_ascii_digit())
+        if t.len() != 10 || &t[4..5] != "-" || &t[7..8] != "-" {
+            return false;
+        }
+        let (Ok(y), Ok(m), Ok(d)) = (
+            t[..4].parse::<u32>(),
+            t[5..7].parse::<u32>(),
+            t[8..10].parse::<u32>(),
+        ) else {
+            return false;
+        };
+        (2000..=2099).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&d)
     });
     assert!(
         has_iso_date,
-        "README missing an ISO-8601 download date (AC3)"
+        "README missing a plausible ISO-8601 download date YYYY-MM-DD (AC3)"
     );
 
     // AC3: provenance chain mentions Eurostat and Oak Ridge (the upstream chain)
@@ -195,15 +210,28 @@ fn readme_documents_required_provenance() {
     );
 
     // AC3: each file must be referenced by name in the README, with its size
-    // and SHA-256 also documented.
+    // and SHA-256 also documented. The size check is row-level (filename and
+    // size on the same line, size as a standalone token) so that
+    // `readme.contains("1024000")` cannot pass by matching a substring inside
+    // an unrelated longer number such as `10240000`.
+    let size_re = |size: u64| {
+        let s = size.to_string();
+        move |line: &str| {
+            line.split(|c: char| !c.is_ascii_digit())
+                .any(|tok| tok == s)
+        }
+    };
     for (name, size, sha) in VENDORED {
         assert!(
             readme.contains(name),
             "README does not mention vendored file `{name}` (AC3)"
         );
+        let row_has_size = readme
+            .lines()
+            .any(|line| line.contains(name) && size_re(*size)(line));
         assert!(
-            readme.contains(&size.to_string()),
-            "README does not document size {size} for {name} (AC3)"
+            row_has_size,
+            "README does not document size {size} on the same row as {name} (AC3)"
         );
         assert!(
             readme.contains(sha),
@@ -307,8 +335,10 @@ fn cargo_toml_has_no_runtime_dependencies() {
     let path = repo_root().join("Cargo.toml");
     let text = fs::read_to_string(&path).expect("read Cargo.toml");
 
-    let deps = extract_toml_table(&text, "dependencies")
-        .expect("Cargo.toml must declare a [dependencies] table");
+    // A missing `[dependencies]` table is equivalent to an empty one for the
+    // purposes of this invariant — a library crate with zero runtime deps may
+    // legitimately omit the section, or use only `[dev-dependencies]`.
+    let deps = extract_toml_table(&text, "dependencies").unwrap_or("");
     let non_empty = deps
         .lines()
         .filter(|l| {
