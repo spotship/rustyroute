@@ -53,9 +53,13 @@ pub struct NodeCoord {
     pub lat: f32,
 }
 
-/// One directed half-edge in the CSR adjacency. For undirected edge
-/// between A and B, two `DirectedEdge`s are emitted (A→B, B→A) sharing
-/// the same `edge_id`.
+/// One directed half-edge in the CSR adjacency. For an undirected edge
+/// between distinct nodes A and B, two `DirectedEdge`s are emitted
+/// (A→B, B→A) sharing the same `edge_id`. Self-loops (`A == B`) are the
+/// one exception: they produce a single `DirectedEdge` with
+/// `target == source`, because the "reverse" half would just duplicate
+/// the forward one. Either way, the undirected edge has exactly one
+/// entry in `Graph::edge_endpoints` and `Graph::undirected_weights`.
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Copy, Debug)]
 #[rkyv(derive(Debug))]
 pub struct DirectedEdge {

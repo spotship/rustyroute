@@ -35,18 +35,29 @@ fn archive_bytes(res_km: u32) -> &'static [u8] {
     }
 }
 
+// Validate the 8-byte prefix and return the rkyv payload slice. Every
+// test that calls `rkyv::access` should go through this so a truncated
+// or corrupt archive fails with a clear assertion instead of an index
+// out-of-bounds panic.
+fn rkyv_payload(res_km: u32) -> &'static [u8] {
+    let bytes = archive_bytes(res_km);
+    assert!(
+        bytes.len() > 8,
+        "archive for {res_km}km is too small: {} bytes (need >8 for prefix)",
+        bytes.len()
+    );
+    assert_eq!(&bytes[0..4], MAGIC, "wrong magic for {res_km}km");
+    let v = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+    assert_eq!(v, SCHEMA_VERSION, "wrong schema version for {res_km}km");
+    &bytes[8..]
+}
+
 #[test]
 fn all_five_archives_exist_with_magic() {
+    // The header-validation assertions live in `rkyv_payload`; calling
+    // it for every resolution is the test.
     for &n in RESOLUTIONS {
-        let bytes = archive_bytes(n);
-        assert!(
-            bytes.len() > 8,
-            "archive for {n}km is too small: {} bytes",
-            bytes.len()
-        );
-        assert_eq!(&bytes[0..4], MAGIC, "wrong magic for {n}km");
-        let v = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
-        assert_eq!(v, SCHEMA_VERSION, "wrong schema version for {n}km");
+        let _ = rkyv_payload(n);
     }
 }
 
@@ -54,7 +65,7 @@ fn all_five_archives_exist_with_magic() {
 fn bytes_per_edge_within_bound() {
     for &n in RESOLUTIONS {
         let bytes = archive_bytes(n);
-        let archived = rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(&bytes[8..])
+        let archived = rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n))
             .expect("access archived graph");
         let n_edges = archived.edge_endpoints.len() as u64;
         let bpe = bytes.len() as u64 / n_edges.max(1);
@@ -94,8 +105,7 @@ fn edge_groups_has_thirteen_in_order() {
 #[test]
 fn all_groups_non_empty_every_resolution() {
     for &n in RESOLUTIONS {
-        let bytes = archive_bytes(n);
-        let archived = rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(&bytes[8..])
+        let archived = rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n))
             .expect("access archived graph");
         assert_eq!(archived.groups.len(), 13, "{n}km: group count != 13");
         for (i, g) in archived.groups.iter().enumerate() {
@@ -112,9 +122,8 @@ fn all_groups_non_empty_every_resolution() {
 #[test]
 fn group_names_match_edge_groups_constant() {
     for &n in RESOLUTIONS {
-        let bytes = archive_bytes(n);
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(&bytes[8..]).expect("access");
+            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         for (i, g) in archived.groups.iter().enumerate() {
             assert_eq!(
                 g.name.as_str(),
@@ -132,9 +141,8 @@ fn menai_strait_counts_match_ground_truth() {
     // ground truth and the rerun-if-changed list in build/mod.rs.
     let expected: &[(u32, usize)] = &[(5, 4), (10, 2), (20, 2), (50, 3), (100, 1)];
     for &(n, want) in expected {
-        let bytes = archive_bytes(n);
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(&bytes[8..]).expect("access");
+            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         let menai = archived
             .groups
             .iter()
@@ -151,9 +159,8 @@ fn menai_strait_counts_match_ground_truth() {
 #[test]
 fn self_loops_preserved() {
     for &n in RESOLUTIONS {
-        let bytes = archive_bytes(n);
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(&bytes[8..]).expect("access");
+            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         // Archived<(u32, u32)> exposes `.0` and `.1` as ArchivedU32; use
         // .to_native() for the comparison so the test is portable across
         // rkyv's archived primitive wrappers.
@@ -173,9 +180,8 @@ fn self_loops_preserved() {
 #[test]
 fn csr_structural_invariants() {
     for &n in RESOLUTIONS {
-        let bytes = archive_bytes(n);
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(&bytes[8..]).expect("access");
+            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         assert_eq!(
             archived.node_offsets.len(),
             archived.nodes.len() + 1,

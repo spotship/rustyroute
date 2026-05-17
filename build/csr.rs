@@ -76,9 +76,12 @@ pub fn build_csr(raw: &[RawEdge]) -> CsrBuilt {
             weight_km: w,
             edge_id: edge_id as u32,
         });
-        // For self-loops, don't double-count the reverse — but we DO
-        // emit it (it's the same edge entry semantically). This matches
-        // the spec's "preserve self-loops verbatim".
+        // Self-loop exception: when src == dst, the "reverse" half-edge
+        // would be identical to the forward one (same target, same
+        // edge_id) and would just inflate the adjacency list with a
+        // duplicate. Emit only the forward half. The self-loop is still
+        // represented by exactly one `edge_endpoints` entry with
+        // `.0 == .1`, so downstream consumers can still detect it.
         if src != dst {
             adj[dst as usize].push(DirectedEdge {
                 target: src,
