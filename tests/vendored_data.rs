@@ -120,9 +120,8 @@ fn gpkg_magic_header_present() {
         let p = vendor_dir().join(name);
         let mut head = [0u8; SQLITE_MAGIC.len()];
         let mut f = fs::File::open(&p).unwrap_or_else(|e| panic!("open {}: {e}", p.display()));
-        f.read_exact(&mut head).unwrap_or_else(|e| {
-            panic!("{name} truncated below SQLite header length: {e}")
-        });
+        f.read_exact(&mut head)
+            .unwrap_or_else(|e| panic!("{name} truncated below SQLite header length: {e}"));
         assert_eq!(
             &head, SQLITE_MAGIC,
             "{name} does not start with SQLite/GeoPackage magic header"
@@ -350,6 +349,22 @@ fn cargo_toml_has_no_runtime_dependencies() {
         non_empty, 0,
         "Cargo.toml [dependencies] section is no longer empty; \
          ENG-4677 forbids new runtime deps. Contents:\n{deps}"
+    );
+
+    // Also reject sub-table dependency declarations like `[dependencies.serde]`.
+    // `extract_toml_table` only matches the exact `[dependencies]` header, so a
+    // future contributor adding a runtime dep via the sub-table form would
+    // otherwise slip past this guard and silently violate the AC6 invariant.
+    let subtable_headers: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("[dependencies."))
+        .collect();
+    assert!(
+        subtable_headers.is_empty(),
+        "Cargo.toml declares sub-table runtime dep(s); \
+         ENG-4677 forbids new runtime deps. Headers found:\n{}",
+        subtable_headers.join("\n")
     );
 }
 
