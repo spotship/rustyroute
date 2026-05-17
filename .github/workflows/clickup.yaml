@@ -1,0 +1,16 @@
+name: "clickup"
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, review_requested]
+  pull_request_review:
+    types: [submitted]
+  push:
+    branches: [main]
+
+jobs:
+  update-ticket-status:
+    uses: spotship/.github/.github/workflows/clickup.yaml@main
+    with:
+      dev_branch: main
+    secrets: inherit
