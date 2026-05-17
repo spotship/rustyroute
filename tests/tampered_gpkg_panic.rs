@@ -15,8 +15,8 @@
 //!   - The actual SQLite reader (rusqlite) correctly returns rows from
 //!     a tampered .gpkg copy.
 //!   - When the Suez row is absent, the build pipeline panics with
-//!     the documented message format containing `edge group
-//!     `suezCanal` is empty` and the resolution.
+//!     the documented message naming the empty group (`suezCanal`)
+//!     and the resolution.
 //!   - A clean copy of the same .gpkg goes through the pipeline
 //!     without panicking — proving the test is exercising the right
 //!     failure surface, not a coincidence.

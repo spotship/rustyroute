@@ -28,8 +28,19 @@
 //! # Endianness, alignment, stability
 //!
 //! - rkyv 0.8 uses little-endian for all primitive types.
-//! - rkyv writes 16-byte aligned roots; the 8-byte prefix preserves
-//!   relative-offset correctness inside the rkyv payload.
+//! - The 8-byte file prefix lives outside the rkyv payload, so it does
+//!   not perturb rkyv's relative-offset machinery — readers slice
+//!   `&bytes[8..]` before calling `rkyv::access`. It does, however,
+//!   shift the payload by 8 bytes relative to the file's base address:
+//!   a page-aligned mmap gives a payload pointer that is 8-byte aligned
+//!   but not 16-byte aligned. The current `ArchivedGraph` only contains
+//!   `ArchivedVec`, `ArchivedString`, `u32`, and `f32` fields (≤4-byte
+//!   alignment), so `rkyv::access` on a direct slice succeeds today —
+//!   exercised by `tests/build_artifacts.rs`. A future `Graph::load`
+//!   that mmaps the file MUST either verify the alignment requirement
+//!   of the root type fits this guarantee or copy the payload into an
+//!   aligned buffer; if a schema change ever needs stronger alignment,
+//!   pad the prefix to that boundary and bump `SCHEMA_VERSION`.
 //! - `SCHEMA_VERSION` MUST be bumped on any change to a struct that
 //!   derives `rkyv::Archive` (adding, removing, renaming, or reordering
 //!   fields, or changing a field's type). rkyv stores fields at fixed
