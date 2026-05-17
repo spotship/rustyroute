@@ -19,7 +19,24 @@ shipping lanes and enriched with AIS data) and its shortest-path
 algorithmic approach (Dijkstra over the maritime graph) inform this
 project.
 
-This repository does not vendor Eurostat graph data in the initial
-skeleton. When upstream data or code is introduced in future commits,
-this NOTICE will be updated to reflect the precise nature of the
-derivative work, in line with EUPL-1.2 Article 5 (attribution rights).
+Vendored Eurostat SeaRoute / MARNET data
+----------------------------------------
+
+This repository vendors the following Eurostat SeaRoute / MARNET
+GeoPackage datasets, byte-for-byte and unmodified, under
+vendor/eurostat-marnet/:
+
+    marnet_plus_5km.gpkg
+    marnet_plus_10km.gpkg
+    marnet_plus_20km.gpkg
+    marnet_plus_50km.gpkg
+    marnet_plus_100km.gpkg
+
+    Source repository: https://github.com/eurostat/searoute
+    Source commit:     88a2e568a8e0144d1f5a81c3931a7bc2bcce6901
+    Source path:       modules/core/src/main/resources/marnet/
+    Copyright (c) European Union, Eurostat
+    Licensed under EUPL-1.2
+
+See vendor/eurostat-marnet/README.md for download date, file sizes,
+SHA-256 checksums, and the full provenance chain.
