@@ -13,3 +13,8 @@ keywords = ["routing", "maritime", "searoute", "geospatial", "shipping"]
 categories = ["algorithms", "science::geo"]
 
 [dependencies]
+rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck"] }
+
+[build-dependencies]
+rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck", "std"] }
+rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
