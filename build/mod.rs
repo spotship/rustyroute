@@ -2,10 +2,14 @@
 
 #[path = "gpkg.rs"]
 pub mod gpkg;
+#[path = "gpkg_io.rs"]
+pub mod gpkg_io;
 #[path = "geometry.rs"]
 pub mod geometry;
 #[path = "csr.rs"]
 pub mod csr;
+#[path = "groups.rs"]
+pub mod groups;
 
 use std::path::PathBuf;
 
@@ -16,7 +20,6 @@ pub fn run() {
         std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR set by cargo"),
     );
 
-    // Rerun directives — change these if you add new build-time inputs.
     for n in RESOLUTIONS {
         println!(
             "cargo:rerun-if-changed=vendor/eurostat-marnet/marnet_plus_{}km.gpkg",
@@ -27,22 +30,24 @@ pub fn run() {
         "build.rs",
         "build/mod.rs",
         "build/gpkg.rs",
+        "build/gpkg_io.rs",
         "build/geometry.rs",
         "build/csr.rs",
+        "build/groups.rs",
         "src/graph.rs",
     ] {
         println!("cargo:rerun-if-changed={f}");
     }
 
-    // Read + CSR each resolution; output writing is added in Task 6.
     for n in RESOLUTIONS {
         let gpkg = manifest_dir.join(format!(
             "vendor/eurostat-marnet/marnet_plus_{}km.gpkg",
             n
         ));
-        let raw_edges = gpkg::iter_edges(&gpkg)
+        let raw_edges = gpkg_io::iter_edges(&gpkg)
             .unwrap_or_else(|e| panic!("read {}: {e}", gpkg.display()));
-        let _csr_built = csr::build_csr(&raw_edges);
-        // (group assignment + archive write wired in later tasks)
+        let csr_built = csr::build_csr(&raw_edges);
+        let _groups = groups::assign_groups(&raw_edges, &csr_built, *n);
+        // (archive write wired in Task 6)
     }
 }
