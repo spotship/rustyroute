@@ -13,3 +13,15 @@ keywords = ["routing", "maritime", "searoute", "geospatial", "shipping"]
 categories = ["algorithms", "science::geo"]
 
 [dependencies]
+rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck"] }
+
+[build-dependencies]
+rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck", "std"] }
+rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
+
+[dev-dependencies]
+# Used by tests/tampered_gpkg_panic.rs to exercise the full build pipeline
+# (real gpkg_io reader -> csr -> groups) against a tampered .gpkg copy.
+# Reuses the bundled SQLite amalgamation already built for [build-dependencies].
+rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
+tempfile = "3"
