@@ -288,11 +288,27 @@ mod test_override {
         SKIP_OUT_DIR.load(Ordering::Acquire)
     }
 
-    /// Test-only hook. Crate-internal to this module so external code
-    /// cannot reach for it. Used by `#[cfg(test)]` blocks below.
+    /// RAII guard that flips `SKIP_OUT_DIR` to `true` on construction
+    /// and restores it to `false` on drop — including when the
+    /// owning test panics, so a single failing assertion can't leak
+    /// step-2-disabled state into other tests in the binary.
+    /// Test-only; crate-internal to this module.
     #[cfg(test)]
-    pub(super) fn set_skip_out_dir(v: bool) {
-        SKIP_OUT_DIR.store(v, Ordering::Release);
+    pub(super) struct SkipOutDirGuard;
+
+    #[cfg(test)]
+    impl SkipOutDirGuard {
+        pub(super) fn enable() -> Self {
+            SKIP_OUT_DIR.store(true, Ordering::Release);
+            Self
+        }
+    }
+
+    #[cfg(test)]
+    impl Drop for SkipOutDirGuard {
+        fn drop(&mut self) {
+            SKIP_OUT_DIR.store(false, Ordering::Release);
+        }
     }
 }
 
@@ -334,10 +350,9 @@ mod tests {
         unsafe {
             std::env::remove_var("RUSTYROUTE_DATA_DIR");
         }
-        test_override::set_skip_out_dir(true);
+        let _skip = test_override::SkipOutDirGuard::enable();
         let g = Graph::load(50).expect("load(50) via static fallback");
         assert_eq!(g.resolution_km(), 50);
-        test_override::set_skip_out_dir(false);
     }
 
     /// AC3: with no env var, OUT_DIR step disabled, and the
@@ -354,12 +369,11 @@ mod tests {
         unsafe {
             std::env::remove_var("RUSTYROUTE_DATA_DIR");
         }
-        test_override::set_skip_out_dir(true);
+        let _skip = test_override::SkipOutDirGuard::enable();
         match Graph::load(50) {
             Err(LoadError::DataNotAvailable(50)) => {}
             other => panic!("expected DataNotAvailable(50), got {other:?}"),
         }
-        test_override::set_skip_out_dir(false);
     }
 
     /// `$RUSTYROUTE_DATA_DIR` set to a non-existent dir → DataFileMissing.
