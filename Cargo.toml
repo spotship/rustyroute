@@ -12,8 +12,24 @@ license = "EUPL-1.2"
 keywords = ["routing", "maritime", "searoute", "geospatial", "shipping"]
 categories = ["algorithms", "science::geo"]
 
+[features]
+default = ["data-50km"]
+data-5km = []
+data-10km = []
+data-20km = []
+data-50km = []
+data-100km = []
+# `cli` is a forward-declared meta-feature for the future binary
+# (ENG-4xxx). Today it has no dep:clap term because clap is not yet a
+# dependency — it only turns on every data resolution.
+cli = ["data-5km", "data-10km", "data-20km", "data-50km", "data-100km"]
+
 [dependencies]
 rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck"] }
+thiserror = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+memmap2 = "0.9"
 
 [build-dependencies]
 rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck", "std"] }
