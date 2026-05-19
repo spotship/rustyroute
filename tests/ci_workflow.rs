@@ -29,8 +29,9 @@
 //!
 //!   - Codecov upload behaviour (requires GitHub).
 //!   - Cold/warm-cache timing (requires GitHub runners).
-//!   - features-matrix data-100km row — suspended pending ENG-4679 per
-//!     the spec; the YAML carries the row as a placeholder today.
+//!   - features-matrix data-100km row — deferred to ENG-4679; the
+//!     YAML carries a TODO and will gain the row when [features]
+//!     lands in Cargo.toml.
 //!
 //! These tests intentionally avoid pulling in a YAML parser. The file
 //! is small, hand-authored, and validated by GitHub itself on push.
@@ -42,7 +43,7 @@
 //!   AC1 clippy gates `unused_variable`     -> `clippy_job_uses_deny_warnings`
 //!   AC2 fmt gates whitespace drift         -> `fmt_job_uses_check_flag`
 //!   AC3 features-matrix gates feature use  -> `features_matrix_has_no_default_features_row`
-//!                                             (data-100km row suspended pending ENG-4679)
+//!                                             (data-100km row deferred to ENG-4679)
 //!   AC4 Codecov upload on PRs              -> `coverage_job_uploads_to_codecov`
 //!   AC5/AC6 cold/warm-cache budget         -> not testable locally
 //!   R9   MSRV stays in sync                -> `msrv_in_workflow_matches_cargo_toml`
@@ -177,7 +178,7 @@ fn features_matrix_has_no_default_features_row() {
     let wf = read_workflow();
     // The `--no-default-features` build is the row that catches
     // "I forgot to #[cfg]-gate this" — the AC3 sentinel. The
-    // data-100km row is suspended pending ENG-4679 per the spec.
+    // data-100km row is deferred to ENG-4679 per the spec.
     assert!(
         wf.contains("--no-default-features"),
         "features-matrix must include a `--no-default-features` row to enforce \

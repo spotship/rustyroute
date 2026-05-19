@@ -71,15 +71,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # TODO(ENG-4679): restore --features data-100km row once the
-      # [features] table lands on main. The row is currently a no-op
-      # placeholder because Cargo.toml at HEAD has no [features] table.
+      # TODO(ENG-4679): add `--features data-100km` row once the
+      # [features] table lands on main. Removed the placeholder row
+      # because with no [features] table in Cargo.toml, `flags: ""` is
+      # byte-identical to the `default` row below and wastes ~1
+      # ubuntu-minute per CI run.
       matrix:
         include:
           - label: "no-default"
             flags: "--no-default-features"
-          - label: "data-100km only (DISABLED until ENG-4679)"
-            flags: ""
           - label: "all-features"
             flags: "--all-features"
           - label: "default"
