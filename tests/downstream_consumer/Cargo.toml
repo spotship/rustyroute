@@ -1,0 +1,14 @@
+[package]
+name = "downstream-consumer"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# Path dep on the parent rustyroute crate; default features enable
+# data-50km, which the smoke test exercises via both Graph::load and
+# Graph::from_bytes(BYTES_50KM).
+rustyroute = { path = "../.." }
