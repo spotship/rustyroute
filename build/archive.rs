@@ -1,9 +1,9 @@
-//! Serialise a `Graph` to `{OUT_DIR}/data/{N}km.rkyv`.
+//! Serialise a `GraphData` to `{OUT_DIR}/data/{N}km.rkyv`.
 //!
 //! File layout (matches `src/graph.rs` docs):
 //!   bytes 0..4   : ASCII magic b"RRG1"
 //!   bytes 4..8   : SCHEMA_VERSION as u32 LE
-//!   bytes 8..    : rkyv bytes of Archived<Graph>
+//!   bytes 8..    : rkyv bytes of ArchivedGraphData
 
 use crate::graph::{GraphData, MAGIC, SCHEMA_VERSION};
 use std::path::Path;

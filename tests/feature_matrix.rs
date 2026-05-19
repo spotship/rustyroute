@@ -20,12 +20,25 @@
 //! `cargo check` is used instead of `cargo build` to keep the runtime
 //! within seconds — we only need the type-check pass, not codegen.
 //! A dedicated `CARGO_TARGET_DIR` keeps the recursive cargo from
-//! contending with the outer build on `target/`.
+//! contending with the outer build on `target/`. The three tests in
+//! this binary all reuse that same target dir (so each pays only the
+//! first compile's cost; subsequent runs hit the cache) which means
+//! they would otherwise race on the cargo target-dir lock when libtest
+//! runs them in parallel. The `CARGO_LOCK` mutex below serialises the
+//! cargo subprocesses inside this binary.
 
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Mutex;
+
+/// Serialises the recursive `cargo check` invocations in this binary
+/// so they don't contend on `CARGO_TARGET_DIR`'s build-plan lock.
+/// Held for the duration of each subprocess. Other test binaries that
+/// shell out to cargo (e.g. `downstream_consumer_smoke`) use their own
+/// disjoint target dirs and are not gated by this lock.
+static CARGO_LOCK: Mutex<()> = Mutex::new(());
 
 fn run_cargo_check(extra_args: &[&str]) -> std::process::Output {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -34,6 +47,7 @@ fn run_cargo_check(extra_args: &[&str]) -> std::process::Output {
         .unwrap_or_else(|_| std::env::temp_dir().join("rustyroute_feature_matrix_target"));
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
 
+    let _guard = CARGO_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut cmd = Command::new(&cargo);
     cmd.arg("check")
         .arg("--manifest-path")
