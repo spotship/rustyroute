@@ -9,7 +9,7 @@
 //! +-----------+-----------+---------------------------------------------+
 //! | 0         | 4 bytes   | ASCII magic: b"RRG1"                        |
 //! | 4         | 4 bytes   | u32 little-endian: SCHEMA_VERSION = 1       |
-//! | 8         | N bytes   | rkyv-serialised Archived<Graph>             |
+//! | 8         | N bytes   | rkyv-serialised ArchivedGraphData           |
 //! |           |           | (little-endian; rkyv 0.8 default)           |
 //! +-----------+-----------+---------------------------------------------+
 //! ```
@@ -19,11 +19,13 @@
 //! magic + version are written explicitly with `u32::to_le_bytes()` so
 //! version checks work without parsing rkyv first.
 //!
-//! # Authoring
+//! # Authoring and reading
 //!
-//! The writer is `build/archive.rs` in this crate. The reader
-//! (`Graph::load`) is out-of-scope for ENG-4678 and will be added in a
-//! follow-up ticket — consumers must NOT parse the bytes by hand.
+//! The writer is `build/archive.rs`. The reader is the runtime wrapper
+//! in `src/loader.rs` — [`crate::Graph::load`] mmaps an archive from
+//! disk (or falls back to a feature-gated static slice from
+//! [`crate::data`]) and [`crate::Graph::from_bytes`] accepts a static
+//! byte slice on any target. Consumers must NOT parse the bytes by hand.
 //!
 //! # Endianness, alignment, stability
 //!
@@ -33,14 +35,15 @@
 //!   `&bytes[8..]` before calling `rkyv::access`. It does, however,
 //!   shift the payload by 8 bytes relative to the file's base address:
 //!   a page-aligned mmap gives a payload pointer that is 8-byte aligned
-//!   but not 16-byte aligned. The current `ArchivedGraphData` only contains
-//!   `ArchivedVec`, `ArchivedString`, `u32`, and `f32` fields (≤4-byte
-//!   alignment), so `rkyv::access` on a direct slice succeeds today —
-//!   exercised by `tests/build_artifacts.rs`. A future `Graph::load`
-//!   that mmaps the file MUST either verify the alignment requirement
-//!   of the root type fits this guarantee or copy the payload into an
-//!   aligned buffer; if a schema change ever needs stronger alignment,
-//!   pad the prefix to that boundary and bump `SCHEMA_VERSION`.
+//!   but not 16-byte aligned. The current `ArchivedGraphData` only
+//!   contains `ArchivedVec`, `ArchivedString`, `u32`, and `f32` fields
+//!   (≤4-byte alignment), so `rkyv::access` on a direct slice succeeds
+//!   today — exercised by `tests/build_artifacts.rs` and `Graph::load`.
+//!   The feature-baked static slices in [`crate::data`] use an
+//!   `Aligned4<N>` wrapper to force the same 4-byte alignment for
+//!   `include_bytes!`-baked payloads. If a schema change ever needs
+//!   stronger alignment, pad the prefix to that boundary, widen the
+//!   `data::Aligned4` wrapper, and bump `SCHEMA_VERSION`.
 //! - `SCHEMA_VERSION` MUST be bumped on any change to a struct that
 //!   derives `rkyv::Archive` (adding, removing, renaming, or reordering
 //!   fields, or changing a field's type). rkyv stores fields at fixed

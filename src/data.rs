@@ -28,11 +28,13 @@
 //!
 //! To guarantee 4-byte alignment, each `BYTES_{N}KM` const is
 //! exposed as a `&'static [u8]` slice taken from an
-//! `Aligned4`-wrapped static. The static's `_align: u32` field
-//! forces rustc to place the wrapper at a 4-byte boundary, which
-//! the leading byte array inherits. The leading 8-byte file prefix
-//! (magic + schema version) then preserves the same alignment for
-//! the rkyv payload at byte 8.
+//! `Aligned4`-wrapped static. The wrapper carries a zero-sized
+//! `_align: [u32; 0]` field whose `u32` element type has alignment
+//! 4; combined with `#[repr(C)]`, that lifts the struct's alignment
+//! to 4 without contributing any bytes, and the `data: [u8; N]`
+//! field at offset 0 inherits the boundary. The leading 8-byte
+//! file prefix (magic + schema version) then preserves the same
+//! alignment for the rkyv payload at byte 8.
 //!
 //! # Single-include invariant
 //!
