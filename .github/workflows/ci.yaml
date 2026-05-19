@@ -45,3 +45,23 @@ jobs:
         with:
           shared-key: clippy
       - run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test-matrix:
+    name: test (${{ matrix.os }} / ${{ matrix.toolchain }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # MSRV pinned here MUST match Cargo.toml [package].rust-version.
+        # When bumping MSRV, update both places.
+        toolchain: [stable, "1.93.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-${{ matrix.os }}-${{ matrix.toolchain }}
+      - run: cargo test --all-features
