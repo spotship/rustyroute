@@ -302,6 +302,15 @@ mod test_override {
 #[allow(unsafe_code)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// Serializes env-mutating tests in this binary. libtest runs
+    /// tests in parallel by default, so multiple tests that touch
+    /// `RUSTYROUTE_DATA_DIR` or `test_override::skip_out_dir` would
+    /// race without this lock. Acquiring the guard provides the
+    /// single-threaded mutation that Rust 2024's `unsafe`
+    /// `set_var`/`remove_var` require for soundness.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     /// AC3: with no env var and OUT_DIR step disabled, the
     /// static-fallback satisfies `load(50)` under default features
@@ -309,11 +318,11 @@ mod tests {
     #[test]
     #[cfg(feature = "data-50km")]
     fn load_50km_falls_through_to_static() {
-        // SAFETY: tests in the same binary share env state; cargo
-        // runs integration tests serially per binary unless told
-        // otherwise. The set/remove pattern is the documented
-        // pre-2024 idiom; 2024 made these unsafe but the contract
-        // is unchanged.
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: the ENV_LOCK guard above ensures this test is the
+        // only thread mutating env state or `skip_out_dir` for its
+        // duration, satisfying Rust 2024's single-threaded-mutation
+        // requirement for `set_var`/`remove_var`.
         unsafe {
             std::env::remove_var("RUSTYROUTE_DATA_DIR");
         }
@@ -329,7 +338,11 @@ mod tests {
     #[test]
     #[cfg(not(feature = "data-50km"))]
     fn load_50km_data_not_available_when_feature_off() {
-        // SAFETY: see sibling test.
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: the ENV_LOCK guard above ensures this test is the
+        // only thread mutating env state or `skip_out_dir` for its
+        // duration, satisfying Rust 2024's single-threaded-mutation
+        // requirement for `set_var`/`remove_var`.
         unsafe {
             std::env::remove_var("RUSTYROUTE_DATA_DIR");
         }
@@ -344,9 +357,12 @@ mod tests {
     /// `$RUSTYROUTE_DATA_DIR` set to a non-existent dir → DataFileMissing.
     #[test]
     fn load_50km_data_file_missing_when_env_dir_empty() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = std::env::temp_dir().join("rustyroute_test_nonexistent_dir");
-        // SAFETY: serial test env state per cargo's per-binary
-        // sequencing.
+        // SAFETY: the ENV_LOCK guard above ensures this test is the
+        // only thread mutating env state for its duration, satisfying
+        // Rust 2024's single-threaded-mutation requirement for
+        // `set_var`/`remove_var`.
         unsafe {
             std::env::set_var("RUSTYROUTE_DATA_DIR", &tmp);
         }
