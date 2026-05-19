@@ -200,6 +200,27 @@ fn ground_truth_for(resolution_km: u32) -> GroundTruth {
     }
 }
 
+// AC9: cold load(50) < 50ms, warm load(50) < 1ms on a stock dev
+// machine. `#[ignore]` because CI runners vary too much for a hard
+// gate; run manually via `cargo test -- --ignored`.
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+#[test]
+#[ignore = "timing; run with --ignored"]
+fn load_50km_cold_under_50ms_warm_under_1ms() {
+    use std::time::{Duration, Instant};
+    let t0 = Instant::now();
+    let g0 = Graph::load(50).expect("cold load");
+    let cold = t0.elapsed();
+    drop(g0);
+
+    let t1 = Instant::now();
+    let _g1 = Graph::load(50).expect("warm load");
+    let warm = t1.elapsed();
+
+    assert!(cold < Duration::from_millis(50), "cold load took {cold:?}");
+    assert!(warm < Duration::from_millis(1), "warm load took {warm:?}");
+}
+
 #[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
 #[test]
 fn counts_match_build_csr_for_every_resolution() {
