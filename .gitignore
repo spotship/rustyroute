@@ -8,6 +8,9 @@
 # downstream consumers resolve their own dependency versions:
 # https://doc.rust-lang.org/cargo/faq.html#why-do-binaries-have-cargolock-in-version-control-but-not-libraries
 /Cargo.lock
+# The downstream-consumer test sub-package is a library crate too; same
+# rationale for excluding its lockfile.
+tests/downstream_consumer/Cargo.lock
 
 # macOS — https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
 .DS_Store
