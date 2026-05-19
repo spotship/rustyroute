@@ -6,7 +6,7 @@
 //! distance matrices) follow in later tickets. See `README.md` and
 //! `NOTICE` for project status and upstream attribution.
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 pub mod graph;
 
