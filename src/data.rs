@@ -33,6 +33,17 @@
 //! the leading byte array inherits. The leading 8-byte file prefix
 //! (magic + schema version) then preserves the same alignment for
 //! the rkyv payload at byte 8.
+//!
+//! # Single-include invariant
+//!
+//! Each rkyv archive is referenced by exactly one `include_bytes!`
+//! call per resolution. The const-generic length parameter of
+//! `Aligned4` comes from the build-script-generated
+//! `$OUT_DIR/data_lens.rs` (which writes one `DATA_LEN_{N}KM:
+//! usize` per resolution from the archive's on-disk size), not from
+//! a second `include_bytes!(...).len()` expansion. This avoids the
+//! risk of rustc embedding the archive bytes twice when the
+//! optimiser cannot prove the two expansions are identical.
 
 /// Wrapper that forces a 4-byte aligned layout. The `_align` field's
 /// type (`[u32; 0]`, alignment 4) drives the alignment of the
@@ -55,29 +66,64 @@ struct Aligned4<const N: usize> {
     data: [u8; N],
 }
 
+// `DATA_LEN_{5,10,20,50,100}KM` consts emitted by `build/mod.rs`.
+// Driving the `Aligned4<{N}>` const-generic from these constants
+// (instead of a second `include_bytes!(...).len()`) keeps each
+// archive referenced by exactly one `include_bytes!` per resolution.
+include!(concat!(env!("OUT_DIR"), "/data_lens.rs"));
+
 // Each resolution expands to two items: a private `Aligned4`-wrapped
 // const that drives the alignment (see file-level docs), and a public
 // `&'static [u8]` slice borrowed from its `data` field. Keeping both
 // behind one macro avoids five copies of the same `include_bytes!`
 // boilerplate drifting out of sync.
 macro_rules! define_bytes {
-    ($feature:literal, $raw:ident, $public:ident, $path:literal) => {
+    ($feature:literal, $raw:ident, $public:ident, $len:ident, $path:literal) => {
         #[cfg(feature = $feature)]
-        const $raw: Aligned4<{ include_bytes!(concat!(env!("OUT_DIR"), $path)).len() }> =
-            Aligned4 {
-                _align: [],
-                data: *include_bytes!(concat!(env!("OUT_DIR"), $path)),
-            };
+        const $raw: Aligned4<{ $len }> = Aligned4 {
+            _align: [],
+            data: *include_bytes!(concat!(env!("OUT_DIR"), $path)),
+        };
         #[cfg(feature = $feature)]
         pub const $public: &[u8] = &$raw.data;
     };
 }
 
-define_bytes!("data-5km", RAW_5KM, BYTES_5KM, "/data/5km.rkyv");
-define_bytes!("data-10km", RAW_10KM, BYTES_10KM, "/data/10km.rkyv");
-define_bytes!("data-20km", RAW_20KM, BYTES_20KM, "/data/20km.rkyv");
-define_bytes!("data-50km", RAW_50KM, BYTES_50KM, "/data/50km.rkyv");
-define_bytes!("data-100km", RAW_100KM, BYTES_100KM, "/data/100km.rkyv");
+define_bytes!(
+    "data-5km",
+    RAW_5KM,
+    BYTES_5KM,
+    DATA_LEN_5KM,
+    "/data/5km.rkyv"
+);
+define_bytes!(
+    "data-10km",
+    RAW_10KM,
+    BYTES_10KM,
+    DATA_LEN_10KM,
+    "/data/10km.rkyv"
+);
+define_bytes!(
+    "data-20km",
+    RAW_20KM,
+    BYTES_20KM,
+    DATA_LEN_20KM,
+    "/data/20km.rkyv"
+);
+define_bytes!(
+    "data-50km",
+    RAW_50KM,
+    BYTES_50KM,
+    DATA_LEN_50KM,
+    "/data/50km.rkyv"
+);
+define_bytes!(
+    "data-100km",
+    RAW_100KM,
+    BYTES_100KM,
+    DATA_LEN_100KM,
+    "/data/100km.rkyv"
+);
 
 /// Internal helper used by `Graph::load`'s fallback step. Returns
 /// `None` when the given resolution is not compiled in (feature not

@@ -20,7 +20,7 @@
 
 pub mod data;
 pub mod graph;
-pub mod loader;
+mod loader;
 
 pub use crate::loader::{Graph, LoadError};
 

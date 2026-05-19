@@ -11,8 +11,6 @@
 //! [`GraphData`]: crate::graph::GraphData
 
 use crate::graph::{ArchivedGraphData, MAGIC, SCHEMA_VERSION};
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
 use std::path::PathBuf;
 
 /// Errors returned by [`Graph::from_bytes`] and [`Graph::load`].
@@ -147,25 +145,36 @@ impl Graph {
             return Err(LoadError::UnknownResolution(resolution_km));
         }
 
-        // Step 1: explicit env-var override.
-        if let Ok(dir) = std::env::var("RUSTYROUTE_DATA_DIR") {
+        // Step 1: explicit env-var override. Uses `var_os` so a
+        // non-UTF8 directory path is honoured rather than silently
+        // treated as unset. Attempts `File::open` directly (no
+        // `path.exists()` pre-check) to avoid a TOCTOU race and to
+        // distinguish NotFound (→ `DataFileMissing`) from permission
+        // or other I/O errors (→ `Io`).
+        if let Some(dir) = std::env::var_os("RUSTYROUTE_DATA_DIR") {
             let path = PathBuf::from(dir).join(format!("{resolution_km}km.rkyv"));
-            if !path.exists() {
-                return Err(LoadError::DataFileMissing(path));
-            }
-            return Self::load_path(&path, resolution_km);
+            return match std::fs::File::open(&path) {
+                Ok(file) => Self::load_file(file, resolution_km),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    Err(LoadError::DataFileMissing(path))
+                }
+                Err(e) => Err(LoadError::Io(e)),
+            };
         }
 
         // Step 2: baked-in OUT_DIR from rustyroute's own build.rs.
         // option_env! evaluates at compile time of THIS crate.
         // Test-only override (see test_override module below) allows
-        // unit tests to skip this step.
+        // unit tests to skip this step. NotFound falls through to
+        // step 3; other I/O errors surface immediately.
         if !test_override::skip_out_dir()
             && let Some(out_dir) = option_env!("OUT_DIR")
         {
             let path = PathBuf::from(out_dir).join(format!("data/{resolution_km}km.rkyv"));
-            if path.exists() {
-                return Self::load_path(&path, resolution_km);
+            match std::fs::File::open(&path) {
+                Ok(file) => return Self::load_file(file, resolution_km),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(LoadError::Io(e)),
             }
         }
 
@@ -180,8 +189,7 @@ impl Graph {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn load_path(path: &Path, resolution_km: u32) -> Result<Graph, LoadError> {
-        let file = std::fs::File::open(path)?;
+    fn load_file(file: std::fs::File, resolution_km: u32) -> Result<Graph, LoadError> {
         // SAFETY: memmap2::Mmap::map is unsafe because the kernel can
         // change the underlying file bytes out from under us. We treat
         // the mmap as immutable for the lifetime of the Graph: this

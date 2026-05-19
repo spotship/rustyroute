@@ -47,9 +47,27 @@ fn load_unknown_resolution_seven() {
 }
 
 // --- Graph::load(50) happy path via OUT_DIR ---
+//
+// `Graph::load` checks `$RUSTYROUTE_DATA_DIR` first, so an ambient
+// value pointing at a missing or unrelated directory would steer
+// this test off the OUT_DIR path. We clear the env var for the test
+// duration under a binary-scoped `ENV_LOCK` so any future
+// env-mutating tests in this binary can serialize against the same
+// guard (Rust 2024's `remove_var` requires single-threaded mutation,
+// and libtest runs in parallel by default).
 #[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
 #[test]
 fn load_50km_ok_via_out_dir() {
+    use std::sync::Mutex;
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // SAFETY: the ENV_LOCK guard above ensures this is the only
+    // thread mutating env state, satisfying Rust 2024's
+    // single-threaded-mutation requirement for `remove_var`.
+    #[allow(unsafe_code)]
+    unsafe {
+        std::env::remove_var("RUSTYROUTE_DATA_DIR");
+    }
     let g = Graph::load(50).expect("load(50)");
     assert_eq!(g.resolution_km(), 50);
     assert!(g.node_count() > 0);
