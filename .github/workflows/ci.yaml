@@ -1,0 +1,127 @@
+name: "ci"
+
+# Lint + test gate for every PR and push to main. Mirrors clickup.yaml's
+# lowercase-name + .yaml-extension conventions. Inlined (no reusable
+# workflow) because rustyroute is public and spotship/.github's shared
+# workflows are private-scoped — see .github/workflows/clickup.yaml
+# header for the same rationale.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test-matrix:
+    name: test (${{ matrix.os }} / ${{ matrix.toolchain }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # MSRV pinned here MUST match Cargo.toml [package].rust-version.
+        # When bumping MSRV, update both places.
+        toolchain: [stable, "1.93.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-${{ matrix.os }}-${{ matrix.toolchain }}
+      - run: cargo test --all-features
+
+  features-matrix:
+    name: features (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # TODO(ENG-4679): add `--features data-100km` row once the
+      # [features] table lands on main. Removed the placeholder row
+      # because with no [features] table in Cargo.toml, `flags: ""` is
+      # byte-identical to the `default` row below and wastes ~1
+      # ubuntu-minute per CI run.
+      matrix:
+        include:
+          - label: "no-default"
+            flags: "--no-default-features"
+          - label: "all-features"
+            flags: "--all-features"
+          - label: "default"
+            flags: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: features-${{ matrix.label }}
+      - run: cargo build ${{ matrix.flags }}
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: coverage
+      - run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
+      - uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: docs
+      - run: cargo doc --no-deps --all-features
