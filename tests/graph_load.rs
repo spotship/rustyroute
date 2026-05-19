@@ -132,3 +132,101 @@ fn load_100km_ok() {
     assert_eq!(g.resolution_km(), 100);
     assert!(g.node_count() > 0);
 }
+
+// AC8: node_count/edge_count/directed_edge_count parity vs build_csr.
+//
+// We rebuild the CSR from the vendored .gpkg using the same pipeline
+// build.rs uses, then load the corresponding .rkyv via Graph::load and
+// compare counts.
+//
+// `tests/build_helpers_csr.rs` is included here (not as a separate
+// integration-test binary) so that the helper module can resolve
+// `crate::build::*` and `crate::graph` — the same alias pattern used by
+// `tests/group_assignment.rs:4-26`.
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+#[path = "../build/csr.rs"]
+pub mod csr;
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+#[path = "../build/geometry.rs"]
+pub mod geometry;
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+#[path = "../build/gpkg.rs"]
+pub mod gpkg;
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+#[path = "../build/gpkg_io.rs"]
+pub mod gpkg_io;
+// `build/csr.rs` references `crate::graph::{DirectedEdge, GraphData,
+// GroupEntry, NodeCoord}`. Re-include `src/graph.rs` here so the
+// `crate::graph` path resolves inside this integration-test crate.
+// (The schema struct is the SAME source — but Rust's type system sees
+// this re-include as a separate type from `rustyroute::graph::*`. We
+// only use it via `csr::build_csr` for counting purposes, so the
+// type-identity drift is invisible.)
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+#[path = "../src/graph.rs"]
+pub mod graph;
+
+// Alias module so that `crate::build::{geometry, gpkg}` resolves to
+// the local `#[path]`-included modules above (csr and gpkg_io both
+// reference `crate::build::geometry` and `crate::build::gpkg`). Same
+// alias pattern as `tests/group_assignment.rs:24-26`.
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+mod build {
+    pub use super::{geometry, gpkg};
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+struct GroundTruth {
+    nodes: usize,
+    undirected_edges: usize,
+    directed_half_edges: usize,
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+fn ground_truth_for(resolution_km: u32) -> GroundTruth {
+    use std::path::PathBuf;
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = manifest.join(format!(
+        "vendor/eurostat-marnet/marnet_plus_{resolution_km}km.gpkg"
+    ));
+    let raw = gpkg_io::iter_edges(&path)
+        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let built = csr::build_csr(&raw);
+    GroundTruth {
+        nodes: built.nodes.len(),
+        undirected_edges: built.edge_endpoints.len(),
+        directed_half_edges: built.edges.len(),
+    }
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "data-50km"))]
+#[test]
+fn counts_match_build_csr_for_every_resolution() {
+    for &n in &[5u32, 10, 20, 50, 100] {
+        let truth = ground_truth_for(n);
+        let g = match Graph::load(n) {
+            Ok(g) => g,
+            Err(LoadError::DataNotAvailable(_)) => {
+                // Allowed when the feature is off; skip this resolution.
+                continue;
+            }
+            Err(e) => panic!("load({n}) unexpected error: {e:?}"),
+        };
+        assert_eq!(
+            g.node_count() as usize,
+            truth.nodes,
+            "{n}km node_count mismatch"
+        );
+        assert_eq!(
+            g.edge_count() as usize,
+            truth.undirected_edges,
+            "{n}km edge_count mismatch"
+        );
+        assert_eq!(
+            g.directed_edge_count() as usize,
+            truth.directed_half_edges,
+            "{n}km directed_edge_count mismatch"
+        );
+    }
+}
