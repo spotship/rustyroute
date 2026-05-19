@@ -65,3 +65,29 @@ jobs:
         with:
           shared-key: test-${{ matrix.os }}-${{ matrix.toolchain }}
       - run: cargo test --all-features
+
+  features-matrix:
+    name: features (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # TODO(ENG-4679): restore --features data-100km row once the
+      # [features] table lands on main. The row is currently a no-op
+      # placeholder because Cargo.toml at HEAD has no [features] table.
+      matrix:
+        include:
+          - label: "no-default"
+            flags: "--no-default-features"
+          - label: "data-100km only (DISABLED until ENG-4679)"
+            flags: ""
+          - label: "all-features"
+            flags: "--all-features"
+          - label: "default"
+            flags: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: features-${{ matrix.label }}
+      - run: cargo build ${{ matrix.flags }}
