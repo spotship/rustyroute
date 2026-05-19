@@ -71,14 +71,12 @@ fn cargo_toml_path() -> PathBuf {
 
 fn read_workflow() -> String {
     let p = workflow_path();
-    fs::read_to_string(&p)
-        .unwrap_or_else(|e| panic!("failed to read {}: {e}", p.display()))
+    fs::read_to_string(&p).unwrap_or_else(|e| panic!("failed to read {}: {e}", p.display()))
 }
 
 fn read_cargo_toml() -> String {
     let p = cargo_toml_path();
-    fs::read_to_string(&p)
-        .unwrap_or_else(|e| panic!("failed to read {}: {e}", p.display()))
+    fs::read_to_string(&p).unwrap_or_else(|e| panic!("failed to read {}: {e}", p.display()))
 }
 
 /// Extract `rust-version = "X.Y.Z"` from the [package] table of Cargo.toml.
@@ -130,10 +128,7 @@ fn clippy_job_uses_deny_warnings() {
     // `contains("-D warnings")` would be satisfied by the unrelated
     // `RUSTDOCFLAGS: "-D warnings"` in the docs job, which would let
     // the gate quietly become a no-op.
-    let clippy_lines: Vec<&str> = wf
-        .lines()
-        .filter(|l| l.contains("cargo clippy"))
-        .collect();
+    let clippy_lines: Vec<&str> = wf.lines().filter(|l| l.contains("cargo clippy")).collect();
     assert_eq!(
         clippy_lines.len(),
         1,
@@ -311,10 +306,7 @@ fn docs_job_denies_rustdoc_warnings() {
     // Find the RUSTDOCFLAGS assignment line and assert it carries
     // `-D warnings` on the SAME line. Avoids cross-contamination with
     // the clippy job's `-- -D warnings` argument.
-    let rustdocflags_lines: Vec<&str> = wf
-        .lines()
-        .filter(|l| l.contains("RUSTDOCFLAGS"))
-        .collect();
+    let rustdocflags_lines: Vec<&str> = wf.lines().filter(|l| l.contains("RUSTDOCFLAGS")).collect();
     assert_eq!(
         rustdocflags_lines.len(),
         1,
@@ -328,10 +320,7 @@ fn docs_job_denies_rustdoc_warnings() {
          reach docs.rs. Offending line: {:?}",
         rustdocflags_lines[0]
     );
-    assert!(
-        wf.contains("cargo doc"),
-        "docs job must run `cargo doc`."
-    );
+    assert!(wf.contains("cargo doc"), "docs job must run `cargo doc`.");
 }
 
 // ---------------------------------------------------------------------------
