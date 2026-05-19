@@ -6,8 +6,8 @@
 #[test]
 fn lib_rs_uses_deny_not_forbid_unsafe_code() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs");
-    let src = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let src =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     assert!(
         src.contains("#![deny(unsafe_code)]"),
         "src/lib.rs must declare #![deny(unsafe_code)] (got: {})",

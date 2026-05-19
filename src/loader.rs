@@ -11,9 +11,9 @@
 //! [`GraphData`]: crate::graph::GraphData
 
 use crate::graph::{ArchivedGraphData, MAGIC, SCHEMA_VERSION};
-use std::path::PathBuf;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
+use std::path::PathBuf;
 
 /// Errors returned by [`Graph::from_bytes`] and [`Graph::load`].
 #[derive(Debug, thiserror::Error)]
@@ -160,12 +160,12 @@ impl Graph {
         // option_env! evaluates at compile time of THIS crate.
         // Test-only override (see test_override module below) allows
         // unit tests to skip this step.
-        if !test_override::skip_out_dir() {
-            if let Some(out_dir) = option_env!("OUT_DIR") {
-                let path = PathBuf::from(out_dir).join(format!("data/{resolution_km}km.rkyv"));
-                if path.exists() {
-                    return Self::load_path(&path, resolution_km);
-                }
+        if !test_override::skip_out_dir()
+            && let Some(out_dir) = option_env!("OUT_DIR")
+        {
+            let path = PathBuf::from(out_dir).join(format!("data/{resolution_km}km.rkyv"));
+            if path.exists() {
+                return Self::load_path(&path, resolution_km);
             }
         }
 

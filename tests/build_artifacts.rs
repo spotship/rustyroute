@@ -122,8 +122,8 @@ fn all_groups_non_empty_every_resolution() {
 #[test]
 fn group_names_match_edge_groups_constant() {
     for &n in RESOLUTIONS {
-        let archived =
-            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+        let archived = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n))
+            .expect("access");
         for (i, g) in archived.groups.iter().enumerate() {
             assert_eq!(
                 g.name.as_str(),
@@ -141,8 +141,8 @@ fn menai_strait_counts_match_ground_truth() {
     // ground truth and the rerun-if-changed list in build/mod.rs.
     let expected: &[(u32, usize)] = &[(5, 4), (10, 2), (20, 2), (50, 3), (100, 1)];
     for &(n, want) in expected {
-        let archived =
-            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+        let archived = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n))
+            .expect("access");
         let menai = archived
             .groups
             .iter()
@@ -159,8 +159,8 @@ fn menai_strait_counts_match_ground_truth() {
 #[test]
 fn self_loops_preserved() {
     for &n in RESOLUTIONS {
-        let archived =
-            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+        let archived = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n))
+            .expect("access");
         // Archived<(u32, u32)> exposes `.0` and `.1` as ArchivedU32; use
         // .to_native() for the comparison so the test is portable across
         // rkyv's archived primitive wrappers.
@@ -180,8 +180,8 @@ fn self_loops_preserved() {
 #[test]
 fn csr_structural_invariants() {
     for &n in RESOLUTIONS {
-        let archived =
-            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+        let archived = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n))
+            .expect("access");
         assert_eq!(
             archived.node_offsets.len(),
             archived.nodes.len() + 1,

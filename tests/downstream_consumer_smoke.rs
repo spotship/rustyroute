@@ -13,9 +13,7 @@ fn downstream_consumer_subpackage_passes() {
     let sub_manifest = manifest.join("tests/downstream_consumer/Cargo.toml");
     let target_dir = std::env::var("OUT_DIR")
         .map(|s| PathBuf::from(s).join("downstream_consumer_target"))
-        .unwrap_or_else(|_| {
-            std::env::temp_dir().join("rustyroute_downstream_consumer_target")
-        });
+        .unwrap_or_else(|_| std::env::temp_dir().join("rustyroute_downstream_consumer_target"));
 
     // Use the same cargo that's running this test if CARGO is set.
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());

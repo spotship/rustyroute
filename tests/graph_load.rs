@@ -106,9 +106,7 @@ fn from_bytes_invalid_archive_on_payload_tamper() {
     let leaked: &'static [u8] = Box::leak(v.into_boxed_slice());
     match Graph::from_bytes(leaked) {
         Err(LoadError::InvalidArchive(_)) => {}
-        Ok(_) => panic!(
-            "payload tamper at offset {tamper_offset} (len-16) was not detected"
-        ),
+        Ok(_) => panic!("payload tamper at offset {tamper_offset} (len-16) was not detected"),
         Err(other) => panic!("expected InvalidArchive, got {other:?}"),
     }
 }
@@ -190,8 +188,7 @@ fn ground_truth_for(resolution_km: u32) -> GroundTruth {
     let path = manifest.join(format!(
         "vendor/eurostat-marnet/marnet_plus_{resolution_km}km.gpkg"
     ));
-    let raw = gpkg_io::iter_edges(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let raw = gpkg_io::iter_edges(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let built = csr::build_csr(&raw);
     GroundTruth {
         nodes: built.nodes.len(),
