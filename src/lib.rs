@@ -9,5 +9,6 @@
 #![deny(unsafe_code)]
 
 pub mod graph;
+pub mod data;
 
 include!(concat!(env!("OUT_DIR"), "/edge_groups.rs"));
