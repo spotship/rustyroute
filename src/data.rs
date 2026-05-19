@@ -55,50 +55,29 @@ struct Aligned4<const N: usize> {
     data: [u8; N],
 }
 
-#[cfg(feature = "data-5km")]
-const RAW_5KM: Aligned4<{ include_bytes!(concat!(env!("OUT_DIR"), "/data/5km.rkyv")).len() }> =
-    Aligned4 {
-        _align: [],
-        data: *include_bytes!(concat!(env!("OUT_DIR"), "/data/5km.rkyv")),
+// Each resolution expands to two items: a private `Aligned4`-wrapped
+// const that drives the alignment (see file-level docs), and a public
+// `&'static [u8]` slice borrowed from its `data` field. Keeping both
+// behind one macro avoids five copies of the same `include_bytes!`
+// boilerplate drifting out of sync.
+macro_rules! define_bytes {
+    ($feature:literal, $raw:ident, $public:ident, $path:literal) => {
+        #[cfg(feature = $feature)]
+        const $raw: Aligned4<{ include_bytes!(concat!(env!("OUT_DIR"), $path)).len() }> =
+            Aligned4 {
+                _align: [],
+                data: *include_bytes!(concat!(env!("OUT_DIR"), $path)),
+            };
+        #[cfg(feature = $feature)]
+        pub const $public: &[u8] = &$raw.data;
     };
-#[cfg(feature = "data-5km")]
-pub const BYTES_5KM: &[u8] = &RAW_5KM.data;
+}
 
-#[cfg(feature = "data-10km")]
-const RAW_10KM: Aligned4<{ include_bytes!(concat!(env!("OUT_DIR"), "/data/10km.rkyv")).len() }> =
-    Aligned4 {
-        _align: [],
-        data: *include_bytes!(concat!(env!("OUT_DIR"), "/data/10km.rkyv")),
-    };
-#[cfg(feature = "data-10km")]
-pub const BYTES_10KM: &[u8] = &RAW_10KM.data;
-
-#[cfg(feature = "data-20km")]
-const RAW_20KM: Aligned4<{ include_bytes!(concat!(env!("OUT_DIR"), "/data/20km.rkyv")).len() }> =
-    Aligned4 {
-        _align: [],
-        data: *include_bytes!(concat!(env!("OUT_DIR"), "/data/20km.rkyv")),
-    };
-#[cfg(feature = "data-20km")]
-pub const BYTES_20KM: &[u8] = &RAW_20KM.data;
-
-#[cfg(feature = "data-50km")]
-const RAW_50KM: Aligned4<{ include_bytes!(concat!(env!("OUT_DIR"), "/data/50km.rkyv")).len() }> =
-    Aligned4 {
-        _align: [],
-        data: *include_bytes!(concat!(env!("OUT_DIR"), "/data/50km.rkyv")),
-    };
-#[cfg(feature = "data-50km")]
-pub const BYTES_50KM: &[u8] = &RAW_50KM.data;
-
-#[cfg(feature = "data-100km")]
-const RAW_100KM: Aligned4<{ include_bytes!(concat!(env!("OUT_DIR"), "/data/100km.rkyv")).len() }> =
-    Aligned4 {
-        _align: [],
-        data: *include_bytes!(concat!(env!("OUT_DIR"), "/data/100km.rkyv")),
-    };
-#[cfg(feature = "data-100km")]
-pub const BYTES_100KM: &[u8] = &RAW_100KM.data;
+define_bytes!("data-5km", RAW_5KM, BYTES_5KM, "/data/5km.rkyv");
+define_bytes!("data-10km", RAW_10KM, BYTES_10KM, "/data/10km.rkyv");
+define_bytes!("data-20km", RAW_20KM, BYTES_20KM, "/data/20km.rkyv");
+define_bytes!("data-50km", RAW_50KM, BYTES_50KM, "/data/50km.rkyv");
+define_bytes!("data-100km", RAW_100KM, BYTES_100KM, "/data/100km.rkyv");
 
 /// Internal helper used by `Graph::load`'s fallback step. Returns
 /// `None` when the given resolution is not compiled in (feature not
