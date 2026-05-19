@@ -1,0 +1,25 @@
+name: "ci"
+
+# Lint + test gate for every PR and push to main. Mirrors clickup.yaml's
+# lowercase-name + .yaml-extension conventions. Inlined (no reusable
+# workflow) because rustyroute is public and spotship/.github's shared
+# workflows are private-scoped — see .github/workflows/clickup.yaml
+# header for the same rationale.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs: {}
