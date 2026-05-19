@@ -14,7 +14,7 @@
 //! the safe `rkyv::access` API — no unsafe, no internal-build-detail
 //! coupling.
 
-use rustyroute::graph::{ArchivedGraph, MAGIC, SCHEMA_VERSION};
+use rustyroute::graph::{ArchivedGraphData, MAGIC, SCHEMA_VERSION};
 
 const RESOLUTIONS: &[u32] = &[5, 10, 20, 50, 100];
 
@@ -65,7 +65,7 @@ fn all_five_archives_exist_with_magic() {
 fn bytes_per_edge_within_bound() {
     for &n in RESOLUTIONS {
         let bytes = archive_bytes(n);
-        let archived = rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n))
+        let archived = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n))
             .expect("access archived graph");
         let n_edges = archived.edge_endpoints.len() as u64;
         let bpe = bytes.len() as u64 / n_edges.max(1);
@@ -105,7 +105,7 @@ fn edge_groups_has_thirteen_in_order() {
 #[test]
 fn all_groups_non_empty_every_resolution() {
     for &n in RESOLUTIONS {
-        let archived = rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n))
+        let archived = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n))
             .expect("access archived graph");
         assert_eq!(archived.groups.len(), 13, "{n}km: group count != 13");
         for (i, g) in archived.groups.iter().enumerate() {
@@ -123,7 +123,7 @@ fn all_groups_non_empty_every_resolution() {
 fn group_names_match_edge_groups_constant() {
     for &n in RESOLUTIONS {
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         for (i, g) in archived.groups.iter().enumerate() {
             assert_eq!(
                 g.name.as_str(),
@@ -142,7 +142,7 @@ fn menai_strait_counts_match_ground_truth() {
     let expected: &[(u32, usize)] = &[(5, 4), (10, 2), (20, 2), (50, 3), (100, 1)];
     for &(n, want) in expected {
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         let menai = archived
             .groups
             .iter()
@@ -160,7 +160,7 @@ fn menai_strait_counts_match_ground_truth() {
 fn self_loops_preserved() {
     for &n in RESOLUTIONS {
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         // Archived<(u32, u32)> exposes `.0` and `.1` as ArchivedU32; use
         // .to_native() for the comparison so the test is portable across
         // rkyv's archived primitive wrappers.
@@ -181,7 +181,7 @@ fn self_loops_preserved() {
 fn csr_structural_invariants() {
     for &n in RESOLUTIONS {
         let archived =
-            rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
+            rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(rkyv_payload(n)).expect("access");
         assert_eq!(
             archived.node_offsets.len(),
             archived.nodes.len() + 1,

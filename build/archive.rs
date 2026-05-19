@@ -5,10 +5,10 @@
 //!   bytes 4..8   : SCHEMA_VERSION as u32 LE
 //!   bytes 8..    : rkyv bytes of Archived<Graph>
 
-use crate::graph::{Graph, MAGIC, SCHEMA_VERSION};
+use crate::graph::{GraphData, MAGIC, SCHEMA_VERSION};
 use std::path::Path;
 
-pub fn write_archive(path: &Path, graph: &Graph) -> Result<(), String> {
+pub fn write_archive(path: &Path, graph: &GraphData) -> Result<(), String> {
     let payload =
         rkyv::to_bytes::<rkyv::rancor::Error>(graph).map_err(|e| format!("rkyv serialise: {e}"))?;
 

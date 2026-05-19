@@ -15,7 +15,7 @@
 //! ```
 //!
 //! The 8-byte prefix is NOT part of the rkyv payload. Readers slice
-//! `&bytes[8..]` before calling `rkyv::access::<ArchivedGraph>`. The
+//! `&bytes[8..]` before calling `rkyv::access::<ArchivedGraphData>`. The
 //! magic + version are written explicitly with `u32::to_le_bytes()` so
 //! version checks work without parsing rkyv first.
 //!
@@ -33,7 +33,7 @@
 //!   `&bytes[8..]` before calling `rkyv::access`. It does, however,
 //!   shift the payload by 8 bytes relative to the file's base address:
 //!   a page-aligned mmap gives a payload pointer that is 8-byte aligned
-//!   but not 16-byte aligned. The current `ArchivedGraph` only contains
+//!   but not 16-byte aligned. The current `ArchivedGraphData` only contains
 //!   `ArchivedVec`, `ArchivedString`, `u32`, and `f32` fields (≤4-byte
 //!   alignment), so `rkyv::access` on a direct slice succeeds today —
 //!   exercised by `tests/build_artifacts.rs`. A future `Graph::load`
@@ -91,11 +91,16 @@ pub struct GroupEntry {
     pub edge_ids: Vec<u32>,
 }
 
-/// The complete CSR graph for one resolution. See module docs for the
-/// on-disk byte layout.
+/// The complete CSR graph for one resolution — the rkyv-serialised
+/// schema struct written to and read from `.rkyv` archives. The
+/// runtime API (`Graph`, `Graph::load`, `Graph::from_bytes`) lives in
+/// `src/loader.rs`; `GraphData` is the underlying schema.
+///
+/// rkyv auto-derives `ArchivedGraphData` for this struct. See the
+/// `Graph::archived` accessor which returns `&ArchivedGraphData`.
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Debug)]
 #[rkyv(derive(Debug))]
-pub struct Graph {
+pub struct GraphData {
     /// Node coordinate table. Index = node id.
     pub nodes: Vec<NodeCoord>,
     /// CSR row pointers. `len() == nodes.len() + 1`. The last element

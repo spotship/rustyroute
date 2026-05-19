@@ -3,7 +3,7 @@
 
 use crate::build::geometry::polyline_length_km;
 use crate::build::gpkg::RawEdge;
-use crate::graph::{DirectedEdge, Graph, GroupEntry, NodeCoord};
+use crate::graph::{DirectedEdge, GraphData, GroupEntry, NodeCoord};
 use std::collections::HashMap;
 
 pub struct CsrBuilt {
@@ -18,8 +18,8 @@ pub struct CsrBuilt {
 }
 
 impl CsrBuilt {
-    pub fn into_graph_with_groups(self, groups: Vec<GroupEntry>) -> Graph {
-        Graph {
+    pub fn into_graph_with_groups(self, groups: Vec<GroupEntry>) -> GraphData {
+        GraphData {
             nodes: self.nodes,
             node_offsets: self.node_offsets,
             edges: self.edges,

@@ -1,7 +1,7 @@
 //! Compile-time and round-trip checks for the rkyv schema in src/graph.rs.
 
 use rustyroute::graph::{
-    ArchivedGraph, DirectedEdge, Graph, GroupEntry, MAGIC, NodeCoord, SCHEMA_VERSION,
+    ArchivedGraphData, DirectedEdge, GraphData, GroupEntry, MAGIC, NodeCoord, SCHEMA_VERSION,
 };
 
 #[test]
@@ -16,7 +16,7 @@ fn schema_version_is_one() {
 
 #[test]
 fn rkyv_roundtrip_minimal_graph() {
-    let g = Graph {
+    let g = GraphData {
         nodes: vec![
             NodeCoord { lng: 0.0, lat: 0.0 },
             NodeCoord { lng: 1.0, lat: 2.0 },
@@ -44,7 +44,7 @@ fn rkyv_roundtrip_minimal_graph() {
 
     let bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&g).expect("serialise");
     let archived =
-        rkyv::access::<ArchivedGraph, rkyv::rancor::Error>(&bytes).expect("access archived");
+        rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(&bytes).expect("access archived");
     assert_eq!(archived.nodes.len(), 2);
     assert_eq!(archived.edges.len(), 2);
     assert_eq!(archived.edge_endpoints.len(), 1);
