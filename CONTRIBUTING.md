@@ -71,6 +71,25 @@ See <https://developercertificate.org/> for the full text of the DCO.
 
 Before opening a pull request, run:
 
+First-time setup — install the [pre-commit](https://pre-commit.com)
+hook so format and file-hygiene checks run on every `git commit`:
+
+```sh
+pre-commit install
+```
+
+To run the managed hooks explicitly (e.g. before pushing):
+
+```sh
+pre-commit run --all-files
+pre-commit run --hook-stage manual  # runs cargo clippy --no-deps
+```
+
+The pre-commit gate runs `cargo fmt --check` plus lightweight file
+hygiene (trailing whitespace, EOF newlines, YAML/TOML/JSON syntax,
+merge-conflict markers, private keys). Clippy and the rest of the
+full local validation suite remain manual:
+
 ```sh
 cargo fmt --check
 cargo check
