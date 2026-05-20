@@ -429,8 +429,8 @@ fn ac4_clippy_does_not_run_on_default_stage() {
     // so matching on it here would risk a future-pre-commit-version
     // flip. The `Checking e2e_root` banner only appears if clippy
     // actually ran against the seeded crate.
-    let filtered_out = output.contains("No hook with id `cargo-clippy`")
-        || !output.contains("Checking e2e_root");
+    let filtered_out =
+        output.contains("No hook with id `cargo-clippy`") || !output.contains("Checking e2e_root");
     assert!(
         filtered_out,
         "AC4 corollary violated: cargo-clippy executed on the DEFAULT pre-commit stage. \
