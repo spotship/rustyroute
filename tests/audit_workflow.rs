@@ -562,8 +562,11 @@ fn deny_toml_passes_cargo_deny_check_if_tool_is_installed() {
     eprintln!("cargo-deny detected: {}", version.trim());
 
     // cargo-deny needs a lockfile when checking advisories. The crate
-    // is a library so Cargo.lock is gitignored — generate one here in
-    // the target directory so we don't dirty the working tree.
+    // is a library so Cargo.lock is gitignored (.gitignore:7-13) —
+    // `cargo generate-lockfile` writes Cargo.lock next to the workspace
+    // manifest (i.e. at the repo root), which is acceptable here
+    // precisely because that path is gitignored, so the working tree
+    // stays clean across runs.
     let manifest = repo_root().join("Cargo.toml");
     let lock_gen = Command::new("cargo")
         .args(["generate-lockfile", "--manifest-path"])
