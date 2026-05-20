@@ -40,6 +40,7 @@
 //! The test cleans up its tempdir on success and on panic via
 //! `tempfile::TempDir`.
 
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -76,6 +77,29 @@ fn git_on_path() -> bool {
 
 fn cargo_bin() -> String {
     std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())
+}
+
+/// Build a PATH value with `cargo`'s parent directory prepended to
+/// the current `PATH`, using the platform's native separator (`:` on
+/// Unix, `;` on Windows). Pre-commit hooks shell out to `cargo` and
+/// `rustfmt`/`clippy-driver`; on Windows runners those binaries live
+/// next to the `cargo` we were launched with (typically
+/// `~/.rustup/toolchains/.../bin`), not on the inherited PATH.
+fn cargo_augmented_path() -> OsString {
+    let cargo = cargo_bin();
+    let cargo_dir = Path::new(&cargo).parent().map(Path::to_path_buf);
+
+    let mut entries: Vec<PathBuf> = Vec::new();
+    if let Some(dir) = cargo_dir
+        && !dir.as_os_str().is_empty()
+    {
+        entries.push(dir);
+    }
+    if let Some(path) = std::env::var_os("PATH") {
+        entries.extend(std::env::split_paths(&path));
+    }
+
+    std::env::join_paths(&entries).expect("PATH entries must not contain the platform separator")
 }
 
 /// If pre-commit or git is missing, print why and return false.
@@ -188,11 +212,13 @@ fn seed_tmp_repo(dir: &Path) -> PathBuf {
 // point of AC2: the rustyroute working tree should be hook-clean.
 //
 // If the suite fails, the test prints pre-commit's stdout/stderr so the
-// failing hook id is visible in CI logs. We do NOT mutate the working
-// tree — pre-commit's auto-fixers (e.g. end-of-file-fixer) can write
-// files, but we leave restoration to the caller / git. The test
-// re-snapshots the working tree before and after via `git diff
-// --quiet`; if pre-commit modified files, that itself counts as a fail.
+// failing hook id is visible in CI logs. The test snapshots `git diff
+// --quiet` before and after the run; if the tree was clean going in
+// and pre-commit modified any files, that counts as a hook-modified-tree
+// failure even if pre-commit somehow exited 0 — an auto-fixer that
+// "succeeds" by silently rewriting files would still break AC2's
+// "main-equivalent tree is hook-clean" contract. We capture the diff
+// (for the error message), restore the tree, then assert.
 
 #[test]
 fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
@@ -216,19 +242,28 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
 
     // If a hook is an auto-fixer (end-of-file-fixer, trailing-whitespace,
     // mixed-line-ending) it will both modify files AND return non-zero.
-    // Restore any modifications so we don't leave the worktree dirty —
-    // but only if it was clean BEFORE we ran. Otherwise we'd clobber
-    // user changes.
-    if pre_clean {
+    // Capture the post-run drift (if we started clean) so we can both
+    // restore the worktree and fail the assertion with a useful diff.
+    let post_drift: Option<String> = if pre_clean {
         let (post_st, _) = run(Command::new("git")
             .current_dir(&root)
             .args(["diff", "--quiet"]));
-        if !post_st.success() {
+        if post_st.success() {
+            None
+        } else {
+            let (_diff_st, diff) = run(Command::new("git").current_dir(&root).args(["diff"]));
             let _ = run(Command::new("git")
                 .current_dir(&root)
                 .args(["checkout", "--", "."]));
+            Some(diff)
         }
-    }
+    } else {
+        // We started dirty (contributor's local edits in progress).
+        // Don't touch the worktree, don't assert on drift — the
+        // contributor's own changes would dominate the diff. AC2's
+        // exit-status check below is still meaningful.
+        None
+    };
 
     assert!(
         st.success(),
@@ -237,6 +272,19 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
          until the offending file is fixed. The acceptance criterion requires the\n\
          main-equivalent tree to be hook-clean.\n\n\
          pre-commit output:\n{output}"
+    );
+
+    // Even if pre-commit exited 0, a hook may have silently rewritten
+    // a file. That violates AC2's "the main-equivalent tree is
+    // hook-clean" guarantee just as much as a non-zero exit would.
+    assert!(
+        post_drift.is_none(),
+        "AC2 violated: a pre-commit hook modified files on the current tree even \
+         though pre-commit exited 0. AC2 requires the tree to be hook-clean — an \
+         auto-fixer rewriting files is a fail even without a non-zero exit.\n\n\
+         tree diff after pre-commit run:\n{}\n\n\
+         pre-commit output:\n{output}",
+        post_drift.as_deref().unwrap_or("")
     );
 }
 
@@ -269,17 +317,7 @@ fn ac3_cargo_fmt_check_fails_on_misformatted_rust() {
 
     // Pre-commit needs CARGO/rustfmt on PATH. The hook uses
     // `language: system`, so we just need the real cargo.
-    let cargo = cargo_bin();
-    let path = std::env::var("PATH").unwrap_or_default();
-    let cargo_dir = Path::new(&cargo)
-        .parent()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let augmented_path = if cargo_dir.is_empty() {
-        path.clone()
-    } else {
-        format!("{cargo_dir}:{path}")
-    };
+    let augmented_path = cargo_augmented_path();
 
     let (st, output) = run(Command::new("pre-commit")
         .current_dir(&repo)
@@ -294,15 +332,18 @@ fn ac3_cargo_fmt_check_fails_on_misformatted_rust() {
          pre-commit output:\n{output}"
     );
 
-    // Rustfmt's --check output contains `Diff in` lines. Verify the
-    // contributor actually sees a diff (not a generic error), so the
-    // failure is self-explanatory.
+    // Rustfmt's --check output emits `Diff in <path>` for each file
+    // that would be reformatted. Require that exact signature — a
+    // broader match (e.g. on the bare substring `rustfmt`) would let
+    // an unrelated error like "rustfmt component not installed" pass
+    // AC3 without the contributor seeing a meaningful diff.
     assert!(
-        output.contains("Diff in") || output.contains("rustfmt"),
-        "AC3 partial: cargo-fmt-check failed but output does not look like rustfmt's \
-         diff. Expected `Diff in` (rustfmt --check signature) or at least `rustfmt` \
-         in the output so contributors know which hook fired.\n\n\
-         actual output:\n{output}"
+        output.contains("Diff in"),
+        "AC3 partial: cargo-fmt-check failed but output does not contain rustfmt's \
+         `Diff in` signature. Without that, the hook reported a failure but the \
+         contributor cannot tell which file needs reformatting. Likely cause: rustfmt \
+         exited non-zero for a non-drift reason (e.g. component missing, parse error).\
+         \n\nactual output:\n{output}"
     );
 }
 
@@ -329,17 +370,7 @@ fn ac4_manual_stage_invokes_clippy() {
 
     // We need cargo + clippy-driver on PATH inside the pre-commit
     // subprocess.
-    let cargo = cargo_bin();
-    let path = std::env::var("PATH").unwrap_or_default();
-    let cargo_dir = Path::new(&cargo)
-        .parent()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let augmented_path = if cargo_dir.is_empty() {
-        path.clone()
-    } else {
-        format!("{cargo_dir}:{path}")
-    };
+    let augmented_path = cargo_augmented_path();
 
     let (st, output) = run(Command::new("pre-commit")
         .current_dir(&repo)
@@ -399,43 +430,37 @@ fn ac4_clippy_does_not_run_on_default_stage() {
     let tmp = tempfile::tempdir().expect("create tempdir");
     let repo = seed_tmp_repo(tmp.path());
 
-    let cargo = cargo_bin();
-    let path = std::env::var("PATH").unwrap_or_default();
-    let cargo_dir = Path::new(&cargo)
-        .parent()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let augmented_path = if cargo_dir.is_empty() {
-        path.clone()
-    } else {
-        format!("{cargo_dir}:{path}")
-    };
+    let augmented_path = cargo_augmented_path();
 
     // Ask pre-commit to run *just* cargo-clippy on the default stage.
     // It should refuse (the hook is configured for manual only).
-    let (_st, output) = run(Command::new("pre-commit")
+    let (st, output) = run(Command::new("pre-commit")
         .current_dir(&repo)
         .env("PATH", &augmented_path)
         .args(["run", "cargo-clippy", "--all-files", "--color", "never"]));
 
-    // pre-commit's exact message when a hook is filtered out by stage
-    // is "No hook with id `cargo-clippy` in stage `pre-commit`" (or
-    // similar wording across versions). Either that phrase or the
-    // absence of the cargo-clippy invocation banner is acceptable.
-    // Anchor the negative check on cargo's compile banner for the
-    // seeded crate (`Checking e2e_root`). The hook NAME `cargo clippy
-    // --no-deps` from .pre-commit-config.yaml can appear in pre-commit's
-    // banner output regardless of whether the entry actually launched,
-    // so matching on it here would risk a future-pre-commit-version
-    // flip. The `Checking e2e_root` banner only appears if clippy
-    // actually ran against the seeded crate.
-    let filtered_out =
-        output.contains("No hook with id `cargo-clippy`") || !output.contains("Checking e2e_root");
+    // Pre-commit emits a stage-mismatch diagnostic when asked to run
+    // a hook that is not active in the current stage. The wording is
+    // "No hook with id `cargo-clippy` in stage `pre-commit`" on
+    // current versions; we match the stable prefix
+    // `No hook with id `cargo-clippy`` to ride out trailing-wording
+    // tweaks across versions. Pre-commit exits non-zero in that case
+    // — assert both the diagnostic and the non-zero exit so a future
+    // version that filters the hook silently (exit 0, no banner)
+    // cannot pass the test by absence-of-evidence alone.
     assert!(
-        filtered_out,
-        "AC4 corollary violated: cargo-clippy executed on the DEFAULT pre-commit stage. \
-         It must be opt-in via `--hook-stage manual` (clippy is too slow for every \
-         commit). Check that the hook keeps `stages: [manual]`.\n\n\
-         pre-commit output:\n{output}"
+        !st.success(),
+        "AC4 corollary partial: pre-commit exited 0 when asked to run `cargo-clippy` on \
+         the default stage. The expected outcome is a non-zero exit with a \"No hook with \
+         id\" diagnostic — silent success means clippy may actually have run on the \
+         default stage.\n\nfull output:\n{output}"
+    );
+    assert!(
+        output.contains("No hook with id `cargo-clippy`"),
+        "AC4 corollary violated: pre-commit did not emit the expected stage-mismatch \
+         diagnostic (`No hook with id \\`cargo-clippy\\``) when asked to run the hook \
+         on the default stage. The hook must be opt-in via `--hook-stage manual` — \
+         clippy is too slow for every commit. Check that the hook keeps \
+         `stages: [manual]`.\n\nfull output:\n{output}"
     );
 }
