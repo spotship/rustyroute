@@ -294,9 +294,9 @@ fn ac3_cargo_fmt_check_fails_on_misformatted_rust() {
     // contributor actually sees a diff (not a generic error), so the
     // failure is self-explanatory.
     assert!(
-        output.contains("Diff in") || output.contains("cargo fmt"),
+        output.contains("Diff in") || output.contains("rustfmt"),
         "AC3 partial: cargo-fmt-check failed but output does not look like rustfmt's \
-         diff. Expected `Diff in` (rustfmt --check signature) or at least `cargo fmt` \
+         diff. Expected `Diff in` (rustfmt --check signature) or at least `rustfmt` \
          in the output so contributors know which hook fired.\n\n\
          actual output:\n{output}"
     );
