@@ -44,8 +44,13 @@ repos:
   - repo: local
     hooks:
       - id: cargo-fmt-check
-        name: cargo fmt --check
-        entry: cargo fmt --check
+        # Runs `cargo fmt --check` for the root crate AND for the nested
+        # downstream_consumer sub-package (its own [package], not a
+        # workspace member — so the root `cargo fmt --check` does not
+        # traverse into it). Both manifests are checked together so a
+        # contributor cannot silently land fmt drift in either crate.
+        name: cargo fmt --check (root + downstream_consumer)
+        entry: bash -c 'cargo fmt --check && cargo fmt --manifest-path tests/downstream_consumer/Cargo.toml --check'
         language: system
         pass_filenames: false
         types: [rust]

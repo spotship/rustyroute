@@ -164,10 +164,27 @@ fn cargo_fmt_check_hook_contract() {
         cfg.contains("id: cargo-fmt-check"),
         "must define a local hook with `id: cargo-fmt-check`"
     );
+    // The entry must run `cargo fmt --check` (with `--check`, not a
+    // bare `cargo fmt` that would silently reformat files instead of
+    // failing on drift). We assert the substring rather than the
+    // literal full entry because the hook also runs `cargo fmt
+    // --manifest-path tests/downstream_consumer/Cargo.toml --check`
+    // (a non-workspace sub-package — see below).
     assert!(
-        cfg.contains("entry: cargo fmt --check"),
-        "cargo-fmt-check hook must use `entry: cargo fmt --check` — without `--check`, \
+        cfg.contains("cargo fmt --check"),
+        "cargo-fmt-check hook entry must include `cargo fmt --check` — without `--check`, \
          the hook would silently reformat files instead of failing on drift."
+    );
+    // The nested `tests/downstream_consumer/` package is its own
+    // `[package]` (not a workspace member), so the root `cargo fmt
+    // --check` does NOT traverse into it. The hook must also format
+    // that sub-package explicitly — otherwise AC3 (commit with bad
+    // formatting fails) silently misses the sub-package.
+    assert!(
+        cfg.contains("--manifest-path tests/downstream_consumer/Cargo.toml --check"),
+        "cargo-fmt-check hook must also run `cargo fmt --manifest-path \
+         tests/downstream_consumer/Cargo.toml --check` — the nested downstream_consumer \
+         package is not a workspace member, so the root invocation does not cover it."
     );
 
     // The four contract attributes for a `cargo fmt`-style local hook.
