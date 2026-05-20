@@ -28,7 +28,9 @@
 //!
 //! Acceptance-criteria mapping (see spec at
 //! `.ship/tasks/eng-4686-.../plan/spec.md`):
-//!   AC1 cargo deny check passes locally        -> not testable locally without cargo-deny installed (documented in spec)
+//!   AC1 cargo deny check passes locally        -> `deny_toml_passes_cargo_deny_check_if_tool_is_installed`
+//!                                                 (skips when cargo-deny is not on PATH; runs the live
+//!                                                 gate when it is)
 //!   AC2 cargo deny check passes in CI          -> `audit_workflow_runs_cargo_deny_action`
 //!   AC3 GPL-3.0 dep fails the workflow         -> `deny_toml_allowlist_excludes_gpl`
 //!   AC4 known-vulnerable dep flagged with id   -> not testable locally (documented in spec)
@@ -506,5 +508,90 @@ fn deny_toml_advisories_ignore_format_canary_present() {
          requirement: each RUSTSEC-ID line carries a date and a \
          reason. The example / format canary protects reviewers \
          from inheriting ignores with no rationale."
+    );
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end: live `cargo deny check` invocation (AC1)
+// ---------------------------------------------------------------------------
+//
+// AC1 says "cargo deny check runs against deny.toml with no errors at HEAD".
+// The other tests above lock the *shape* of the policy in source control,
+// but they can't catch e.g. an invalid TOML key, a schema-drift mistake,
+// or a real licence-allowlist gap that only surfaces when cargo-deny
+// resolves the live dependency graph.
+//
+// We don't want to add cargo-deny as a hard dev-dependency (spec
+// non-goal). Instead this test:
+//
+//   1. Looks for `cargo-deny` on PATH.
+//   2. If absent, prints a skip notice and returns success — the test
+//      stays green on machines without cargo-deny installed, matching
+//      the spec's developer-install path (`cargo install cargo-deny`).
+//   3. If present, runs `cargo deny --manifest-path … check` and asserts
+//      exit code 0. A non-zero exit (licence, ban, advisory, or source
+//      violation) becomes a test failure that names the offending crate
+//      in the captured stderr — exactly the signal AC1 promises.
+//
+// CI runs cargo-deny via the EmbarkStudios action (audit.yaml), not via
+// this test, so this is a *local* belt-and-braces convenience for devs
+// who have cargo-deny installed. CI behaviour is unchanged.
+
+#[test]
+fn deny_toml_passes_cargo_deny_check_if_tool_is_installed() {
+    use std::process::Command;
+
+    // Probe for cargo-deny on PATH via `cargo deny --version`. We use
+    // `cargo deny` (not bare `cargo-deny`) because that's the documented
+    // invocation form and the one CI uses.
+    let probe = Command::new("cargo").args(["deny", "--version"]).output();
+
+    let probe = match probe {
+        Ok(o) if o.status.success() => o,
+        _ => {
+            eprintln!(
+                "SKIP: cargo-deny not installed locally. Install with \
+                 `cargo install --locked cargo-deny` to enable this \
+                 test. CI runs cargo-deny via the audit.yaml workflow \
+                 regardless."
+            );
+            return;
+        }
+    };
+    let version = String::from_utf8_lossy(&probe.stdout);
+    eprintln!("cargo-deny detected: {}", version.trim());
+
+    // cargo-deny needs a lockfile when checking advisories. The crate
+    // is a library so Cargo.lock is gitignored — generate one here in
+    // the target directory so we don't dirty the working tree.
+    let manifest = repo_root().join("Cargo.toml");
+    let lock_gen = Command::new("cargo")
+        .args(["generate-lockfile", "--manifest-path"])
+        .arg(&manifest)
+        .output()
+        .expect("failed to invoke `cargo generate-lockfile`");
+    assert!(
+        lock_gen.status.success(),
+        "cargo generate-lockfile failed: {}",
+        String::from_utf8_lossy(&lock_gen.stderr)
+    );
+
+    // Run the actual gate. Match the CI invocation:
+    //   `cargo deny --all-features check`
+    // (--all-features mirrors the [graph].all-features = true setting in
+    // deny.toml — without it cargo-deny would only resolve the default
+    // feature graph, missing feature-gated transitive deps.)
+    let out = Command::new("cargo")
+        .args(["deny", "--all-features", "--manifest-path"])
+        .arg(&manifest)
+        .arg("check")
+        .output()
+        .expect("failed to invoke `cargo deny check`");
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        out.status.success(),
+        "cargo deny check FAILED (AC1). stdout:\n{stdout}\n\nstderr:\n{stderr}"
     );
 }
