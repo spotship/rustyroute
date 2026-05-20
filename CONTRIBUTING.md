@@ -69,10 +69,12 @@ See <https://developercertificate.org/> for the full text of the DCO.
 
 ## Local validation
 
-First-time setup — install the [pre-commit](https://pre-commit.com)
-hook so format and file-hygiene checks run on every `git commit`:
+First-time setup — install [pre-commit](https://pre-commit.com) itself
+(via pipx, pip, or Homebrew), then enable the git hook so format and
+file-hygiene checks run on every `git commit`:
 
 ```sh
+pipx install pre-commit   # or: pip install pre-commit / brew install pre-commit
 pre-commit install
 ```
 
