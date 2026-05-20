@@ -125,3 +125,36 @@ jobs:
         with:
           shared-key: docs
       - run: cargo doc --no-deps --all-features
+
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      # Pin `pre-commit` so CI stays reproducible. The e2e tests assert
+      # on specific pre-commit diagnostic wording (e.g. "No hook with
+      # id ..."); an unpinned upstream release could change that
+      # wording and cause nondeterministic CI failures.
+      - run: pip install 'pre-commit==4.6.0'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pre-commit
+      # `cargo test --test pre_commit_e2e` exercises pre-commit
+      # end-to-end: AC2 (`ac2_pre_commit_run_all_files_passes_on_current_tree`)
+      # runs `pre-commit run --all-files` on the repo root and also
+      # asserts the tree stays drift-free; AC3 covers the fmt-bad
+      # commit path; AC4 covers the manual-stage clippy hook and its
+      # default-stage absence. AC2 supersedes a standalone
+      # `pre-commit run --all-files` step here — it does the same hook
+      # invocation plus the drift check, so running both would
+      # duplicate the hook suite and burn CI time. Without pre-commit
+      # on PATH, the e2e tests silently skip — installing it above is
+      # what makes AC2/AC3/AC4 actually machine-verified rather than
+      # self-attested.
+      - run: cargo test --test pre_commit_e2e
