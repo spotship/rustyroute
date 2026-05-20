@@ -159,32 +159,49 @@ fn baseline_hooks_present() {
 fn cargo_fmt_check_hook_contract() {
     let cfg = read_config();
 
-    // Hook id and entry must appear.
+    // Two hooks: the root crate and the nested downstream_consumer
+    // sub-package (its own [package], not a workspace member — so
+    // the root `cargo fmt --check` does NOT traverse into it). Split
+    // into two hooks (rather than chained via `bash -c`) so neither
+    // entry depends on bash being on PATH — relevant on Windows
+    // runners in the CI matrix.
     assert!(
         cfg.contains("id: cargo-fmt-check"),
-        "must define a local hook with `id: cargo-fmt-check`"
+        "must define a local hook with `id: cargo-fmt-check` covering the root crate"
     );
+    assert!(
+        cfg.contains("id: cargo-fmt-check-downstream"),
+        "must define a second local hook with `id: cargo-fmt-check-downstream` for the \
+         nested tests/downstream_consumer sub-package — the root `cargo fmt --check` \
+         does not traverse into a non-workspace-member [package], so AC3 would silently \
+         miss fmt drift in that sub-crate without an explicit hook."
+    );
+
+    // Neither entry may rely on a shell. `bash -c '...'` would fail
+    // on Windows pre-commit runs that don't have bash on PATH.
+    assert!(
+        !cfg.contains("bash -c"),
+        "cargo-fmt-check hooks must not use `bash -c` — bash is not guaranteed on \
+         Windows runners. Split chained commands into separate hooks instead."
+    );
+
     // The entry must run `cargo fmt --check` (with `--check`, not a
     // bare `cargo fmt` that would silently reformat files instead of
-    // failing on drift). We assert the substring rather than the
-    // literal full entry because the hook also runs `cargo fmt
-    // --manifest-path tests/downstream_consumer/Cargo.toml --check`
-    // (a non-workspace sub-package — see below).
+    // failing on drift).
     assert!(
-        cfg.contains("cargo fmt --check"),
-        "cargo-fmt-check hook entry must include `cargo fmt --check` — without `--check`, \
-         the hook would silently reformat files instead of failing on drift."
+        cfg.contains("entry: cargo fmt --check"),
+        "cargo-fmt-check hook entry must be exactly `cargo fmt --check` — without \
+         `--check`, the hook would silently reformat files instead of failing on drift."
     );
-    // The nested `tests/downstream_consumer/` package is its own
-    // `[package]` (not a workspace member), so the root `cargo fmt
-    // --check` does NOT traverse into it. The hook must also format
-    // that sub-package explicitly — otherwise AC3 (commit with bad
-    // formatting fails) silently misses the sub-package.
+
+    // The downstream hook must explicitly target the sub-package's
+    // manifest. Without `--manifest-path`, cargo finds the root
+    // manifest and re-checks the root crate, missing the sub-package.
     assert!(
         cfg.contains("--manifest-path tests/downstream_consumer/Cargo.toml --check"),
-        "cargo-fmt-check hook must also run `cargo fmt --manifest-path \
-         tests/downstream_consumer/Cargo.toml --check` — the nested downstream_consumer \
-         package is not a workspace member, so the root invocation does not cover it."
+        "cargo-fmt-check-downstream hook entry must include `--manifest-path \
+         tests/downstream_consumer/Cargo.toml --check` — without it, cargo would \
+         find the root manifest and skip the sub-package."
     );
 
     // The four contract attributes for a `cargo fmt`-style local hook.
