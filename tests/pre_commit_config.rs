@@ -203,9 +203,7 @@ fn cargo_fmt_check_hook_contract() {
     // trailing args (no `--all`, no extra manifest, etc.) — the
     // sub-package gets its own dedicated hook below.
     assert!(
-        entries
-            .iter()
-            .any(|line| *line == "entry: cargo fmt --check"),
+        entries.contains(&"entry: cargo fmt --check"),
         "cargo-fmt-check (root) hook entry must be exactly `cargo fmt --check` — \
          without `--check`, the hook would silently reformat files instead of \
          failing on drift; with extra args (e.g. `--all`) the coverage would \
@@ -215,9 +213,9 @@ fn cargo_fmt_check_hook_contract() {
     // The downstream hook must target the sub-package's manifest
     // explicitly and use `--check`.
     assert!(
-        entries.iter().any(|line| {
-            *line == "entry: cargo fmt --manifest-path tests/downstream_consumer/Cargo.toml --check"
-        }),
+        entries.contains(
+            &"entry: cargo fmt --manifest-path tests/downstream_consumer/Cargo.toml --check"
+        ),
         "cargo-fmt-check-downstream hook entry must be exactly `cargo fmt \
          --manifest-path tests/downstream_consumer/Cargo.toml --check` — without \
          `--manifest-path`, cargo would find the root manifest and skip the \
