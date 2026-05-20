@@ -222,15 +222,20 @@ fn cargo_fmt_check_hook_contract() {
     );
 
     // The four contract attributes for a `cargo fmt`-style local hook.
-    // We assert their presence somewhere in the file rather than by
-    // YAML structure to keep the test parser-free, matching
-    // `tests/ci_workflow.rs`'s style.
+    // Both fmt hooks (root + downstream) must carry these, so each
+    // attribute should appear AT LEAST twice. A bare `cfg.contains(...)`
+    // would pass even if the downstream hook silently lost its
+    // `pass_filenames: false` or `types: [rust]` — at which point that
+    // hook would either fail (filenames passed as positional args) or
+    // fire on non-Rust commits.
     for needle in ["language: system", "pass_filenames: false", "types: [rust]"] {
+        let count = cfg.matches(needle).count();
         assert!(
-            cfg.contains(needle),
-            "cargo-fmt-check hook must include `{needle}` — without it the hook \
-             would either need a managed Rust toolchain (`language: rust` isn't \
-             supported for `cargo fmt`), pass filenames as positional args \
+            count >= 2,
+            "both cargo-fmt-check hooks must include `{needle}` — found {count} \
+             occurrence(s), expected at least 2 (one per fmt hook). Without it the \
+             hook would either need a managed Rust toolchain (`language: rust` \
+             isn't supported for `cargo fmt`), pass filenames as positional args \
              (which `cargo fmt` rejects), or fire on every commit even when no \
              Rust file is staged."
         );
