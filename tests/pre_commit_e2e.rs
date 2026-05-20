@@ -383,6 +383,11 @@ fn ac4_manual_stage_invokes_clippy() {
     // subprocess.
     let augmented_path = cargo_augmented_path();
 
+    // `--verbose` is required so pre-commit forwards the underlying
+    // command's stdout — by default the framework swallows output when
+    // a hook exits 0, leaving only the "Passed" banner and no evidence
+    // that cargo+clippy actually ran. With --verbose we see cargo's
+    // own `Checking <crate>` banner.
     let (st, output) = run(Command::new("pre-commit")
         .current_dir(&repo)
         .env("PATH", &augmented_path)
@@ -393,6 +398,7 @@ fn ac4_manual_stage_invokes_clippy() {
             "cargo-clippy",
             "--color",
             "never",
+            "--verbose",
         ]));
 
     // The hook should be RECOGNISED — pre-commit's "no hook with this
