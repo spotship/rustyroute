@@ -232,7 +232,11 @@ fn cargo_clippy_hook_is_manual_stage() {
 
 #[test]
 fn python_specific_backend_hooks_are_absent() {
-    let cfg = read_config();
+    // Lowercase the config once so the forbidden-substring check
+    // is case-insensitive. This catches both `djLint` (the upstream
+    // repo casing) and `djlint` (the lowercase hook id) without
+    // needing to enumerate every casing variant.
+    let cfg = read_config().to_lowercase();
     for forbidden in [
         // Python-runtime hooks from pre-commit-hooks v5
         "id: debug-statements",
@@ -241,13 +245,13 @@ fn python_specific_backend_hooks_are_absent() {
         // Python tooling repos copied wholesale from backend
         "ruff-pre-commit",
         "django-upgrade",
-        "djLint",
+        "djlint",
     ] {
         assert!(
             !cfg.contains(forbidden),
-            "`.pre-commit-config.yaml` must NOT include `{forbidden}` — this is a \
-             Python-specific hook/repo from backend's config and does not apply to \
-             a Rust crate. Catches accidental wholesale copy of backend config."
+            "`.pre-commit-config.yaml` must NOT include `{forbidden}` (case-insensitive) \
+             — this is a Python-specific hook/repo from backend's config and does not \
+             apply to a Rust crate. Catches accidental wholesale copy of backend config."
         );
     }
 }
