@@ -21,14 +21,17 @@
 //! --------------
 //! These tests shell out to the system `pre-commit` binary. If it is
 //! not on `PATH` (e.g. a Rust-only contributor without Python), the
-//! test prints a skip message and returns `Ok(())` rather than failing
-//! — matches the spec's "AC1 manual" framing where pre-commit install
-//! is a per-clone setup, not a cargo-test prereq. The CI workflow's
-//! dedicated `pre-commit` job (`.github/workflows/ci.yaml`) installs
-//! `pre-commit` via `pip` and then runs `cargo test --test
-//! pre_commit_e2e` so AC2/AC3/AC4 are exercised for real on every PR;
-//! the other CI jobs (fmt, clippy, test-matrix, ...) do NOT install
-//! pre-commit, so this file silently skips there by design.
+//! test prints a skip message to stderr and `return`s early without
+//! asserting — matches the spec's "AC1 manual" framing where
+//! pre-commit install is a per-clone setup, not a cargo-test prereq.
+//! Cargo still reports these as passing (no panic == pass for a
+//! `#[test] fn` returning `()`), so the skip is invisible to the
+//! suite's pass/fail count. The CI workflow's dedicated `pre-commit`
+//! job (`.github/workflows/ci.yaml`) installs `pre-commit` via `pip`
+//! and then runs `cargo test --test pre_commit_e2e` so AC2/AC3/AC4
+//! are exercised for real on every PR; the other CI jobs (fmt,
+//! clippy, test-matrix, ...) do NOT install pre-commit, so this file
+//! silently skips there by design.
 //!
 //! Isolation
 //! ---------
@@ -407,15 +410,18 @@ fn ac4_manual_stage_invokes_clippy() {
     // `Checking <crate> v<version>` when it starts work, and the
     // literal entry `cargo clippy --no-deps` appears in pre-commit's
     // command echo. Either is sufficient evidence of invocation.
-    // (We deliberately don't match the bare substring `clippy` — that
-    // also appears in pre-commit's hook-name banner, which is printed
-    // regardless of whether the entry actually executed.)
-    let invoked = output.contains("Checking ") || output.contains("cargo clippy --no-deps");
+    // We anchor the positive check on cargo's own output (`Checking
+    // <crate>`). The `cargo clippy --no-deps` substring is NOT a
+    // sufficient signal — it's also the hook's `name:` field in
+    // `.pre-commit-config.yaml`, which pre-commit prints regardless
+    // of whether the entry actually executed (e.g. if the clippy
+    // toolchain component is missing).
     assert!(
-        invoked,
-        "AC4 partial: cargo-clippy hook ran at manual stage but output does not \
-         show clippy actually executing. Expected `Checking ...` (cargo banner) or \
-         `clippy` in the output.\n\n\
+        output.contains("Checking "),
+        "AC4 partial: cargo-clippy hook ran at manual stage but pre-commit output \
+         does not contain cargo's `Checking <crate>` banner, so clippy did NOT \
+         actually execute against the seeded crate. Likely cause: missing clippy \
+         toolchain component, or the entry failed before reaching cargo.\n\n\
          hook exit: {st:?}\n\
          pre-commit output:\n{output}"
     );
