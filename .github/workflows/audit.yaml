@@ -1,0 +1,78 @@
+name: "audit"
+
+# ENG-4686: supply-chain + licence gate. Separate from ci.yaml so:
+#   - schedule-only nightly runs don't pollute the per-PR check list,
+#   - a licence / advisory failure is distinguishable from a
+#     test / build failure at a glance,
+#   - no path filtering — a docs-only PR that ALSO bumps a dep must
+#     still go through this gate.
+#
+# Two jobs:
+#   - cargo-deny (licences, bans, advisories, sources)
+#   - cargo-audit (RUSTSEC vulnerability scanner)
+#
+# Both run on push to main, on every PR, on manual dispatch, and on
+# a nightly cron at 06:00 UTC. The cron job is the only thing that
+# auto-files a GH issue on advisory hits — that's the documented
+# default behaviour of rustsec/audit-check@v2 for `schedule:` events,
+# which is why `permissions: issues: write` is set at workflow level.
+#
+# Cargo.lock is gitignored for this library crate (.gitignore:7-13);
+# each job runs `cargo generate-lockfile` before scanning so advisory
+# version-matching is deterministic.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+# Separate group name from ci's `ci-${{ github.ref }}` so an in-flight
+# ci run on the same ref does NOT cancel audit (and vice versa).
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # audit-check files / updates GH issues on `schedule:` runs.
+  issues: write
+  # audit-check writes check-run annotations on PR.
+  checks: write
+
+jobs:
+  cargo-deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: audit-deny
+      - name: Generate Cargo.lock
+        # Cargo.lock is gitignored (.gitignore:7-13). Generate one in
+        # the job so the deny run has deterministic resolved versions.
+        run: cargo generate-lockfile
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          log-level: info
+          arguments: --all-features
+
+  cargo-audit:
+    name: cargo-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: audit-audit
+      - name: Generate Cargo.lock
+        run: cargo generate-lockfile
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
