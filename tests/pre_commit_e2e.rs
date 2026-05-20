@@ -365,12 +365,13 @@ fn ac4_manual_stage_invokes_clippy() {
     );
 
     // The hook should actually invoke cargo+clippy. cargo prints
-    // `Checking <crate> v<version>` when it starts work, and clippy
-    // prepends `clippy` in its diagnostics or banner. Either is
-    // sufficient evidence of invocation.
-    let invoked = output.contains("Checking ")
-        || output.contains("clippy")
-        || output.contains("cargo clippy --no-deps");
+    // `Checking <crate> v<version>` when it starts work, and the
+    // literal entry `cargo clippy --no-deps` appears in pre-commit's
+    // command echo. Either is sufficient evidence of invocation.
+    // (We deliberately don't match the bare substring `clippy` — that
+    // also appears in pre-commit's hook-name banner, which is printed
+    // regardless of whether the entry actually executed.)
+    let invoked = output.contains("Checking ") || output.contains("cargo clippy --no-deps");
     assert!(
         invoked,
         "AC4 partial: cargo-clippy hook ran at manual stage but output does not \
