@@ -174,11 +174,7 @@ fn cargo_fmt_check_hook_contract() {
     // We assert their presence somewhere in the file rather than by
     // YAML structure to keep the test parser-free, matching
     // `tests/ci_workflow.rs`'s style.
-    for needle in [
-        "language: system",
-        "pass_filenames: false",
-        "types: [rust]",
-    ] {
+    for needle in ["language: system", "pass_filenames: false", "types: [rust]"] {
         assert!(
             cfg.contains(needle),
             "cargo-fmt-check hook must include `{needle}` — without it the hook \
