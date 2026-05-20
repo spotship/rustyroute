@@ -145,10 +145,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: pre-commit
-      # Exercise the hooks directly (AC2) plus the e2e harness that
-      # also covers AC3 (fmt-bad commit) and AC4 (manual-stage clippy).
-      # Without pre-commit on PATH, tests/pre_commit_e2e.rs silently
-      # skips — installing it here is what makes AC2/AC3/AC4 actually
-      # machine-verified rather than self-attested.
-      - run: pre-commit run --all-files --show-diff-on-failure
+      # `cargo test --test pre_commit_e2e` exercises pre-commit
+      # end-to-end: AC2 (`ac2_pre_commit_run_all_files_passes_on_current_tree`)
+      # runs `pre-commit run --all-files` on the repo root and also
+      # asserts the tree stays drift-free; AC3 covers the fmt-bad
+      # commit path; AC4 covers the manual-stage clippy hook and its
+      # default-stage absence. AC2 supersedes a standalone
+      # `pre-commit run --all-files` step here — it does the same hook
+      # invocation plus the drift check, so running both would
+      # duplicate the hook suite and burn CI time. Without pre-commit
+      # on PATH, the e2e tests silently skip — installing it above is
+      # what makes AC2/AC3/AC4 actually machine-verified rather than
+      # self-attested.
       - run: cargo test --test pre_commit_e2e
