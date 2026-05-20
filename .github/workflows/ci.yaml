@@ -125,3 +125,26 @@ jobs:
         with:
           shared-key: docs
       - run: cargo doc --no-deps --all-features
+
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install pre-commit
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pre-commit
+      # Exercise the hooks directly (AC2) plus the e2e harness that
+      # also covers AC3 (fmt-bad commit) and AC4 (manual-stage clippy).
+      # Without pre-commit on PATH, tests/pre_commit_e2e.rs silently
+      # skips — installing it here is what makes AC2/AC3/AC4 actually
+      # machine-verified rather than self-attested.
+      - run: pre-commit run --all-files --show-diff-on-failure
+      - run: cargo test --test pre_commit_e2e
