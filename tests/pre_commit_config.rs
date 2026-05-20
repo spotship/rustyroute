@@ -22,7 +22,10 @@
 //!   - `pre-commit-hooks` is pinned to v5.0.0 (matches backend's
 //!     pinning convention).
 //!   - Required baseline hook ids are present.
-//!   - `cargo fmt --check` hook has the four contract attributes.
+//!   - Both `cargo fmt --check` hooks (root + downstream) carry the
+//!     three per-block contract attributes (`language: system`,
+//!     `pass_filenames: false`, `types: [rust]`) — plus the `entry:`
+//!     line, asserted separately above as an exact match.
 //!   - `cargo clippy` hook is on `stages: [manual]`.
 //!   - Python-specific backend hooks/repos are ABSENT.
 
