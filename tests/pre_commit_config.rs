@@ -221,24 +221,38 @@ fn cargo_fmt_check_hook_contract() {
          sub-package. Found entries: {entries:?}"
     );
 
-    // The four contract attributes for a `cargo fmt`-style local hook.
-    // Both fmt hooks (root + downstream) must carry these, so each
-    // attribute should appear AT LEAST twice. A bare `cfg.contains(...)`
-    // would pass even if the downstream hook silently lost its
-    // `pass_filenames: false` or `types: [rust]` — at which point that
-    // hook would either fail (filenames passed as positional args) or
-    // fire on non-Rust commits.
-    for needle in ["language: system", "pass_filenames: false", "types: [rust]"] {
-        let count = cfg.matches(needle).count();
-        assert!(
-            count >= 2,
-            "both cargo-fmt-check hooks must include `{needle}` — found {count} \
-             occurrence(s), expected at least 2 (one per fmt hook). Without it the \
-             hook would either need a managed Rust toolchain (`language: rust` \
-             isn't supported for `cargo fmt`), pass filenames as positional args \
-             (which `cargo fmt` rejects), or fire on every commit even when no \
-             Rust file is staged."
-        );
+    // The three contract attributes for a `cargo fmt`-style local hook.
+    // Both fmt hooks (root + downstream) must carry these. We assert
+    // per-hook (by locating each `- id:` line and reading up to the
+    // next `- id:`) rather than counting occurrences across the whole
+    // file — a global count of `>= 2` could be satisfied by other
+    // hooks that also use `language: system` and `pass_filenames:
+    // false` (e.g. cargo-clippy), masking a silently dropped attribute
+    // on one of the fmt hooks.
+    let lines: Vec<&str> = cfg.lines().collect();
+    for hook_id in ["cargo-fmt-check", "cargo-fmt-check-downstream"] {
+        let header = format!("- id: {hook_id}");
+        let start = lines
+            .iter()
+            .position(|line| line.trim_start() == header)
+            .unwrap_or_else(|| panic!("hook `{hook_id}` not found in config"));
+        let end = lines[start + 1..]
+            .iter()
+            .position(|line| line.trim_start().starts_with("- id:"))
+            .map(|offset| start + 1 + offset)
+            .unwrap_or(lines.len());
+        let block = &lines[start..end];
+
+        for needle in ["language: system", "pass_filenames: false", "types: [rust]"] {
+            assert!(
+                block.iter().any(|line| line.contains(needle)),
+                "hook `{hook_id}` must include `{needle}` in its own block — without \
+                 it the hook would either need a managed Rust toolchain (`language: \
+                 rust` isn't supported for `cargo fmt`), pass filenames as positional \
+                 args (which `cargo fmt` rejects), or fire on every commit even when \
+                 no Rust file is staged. Block scanned:\n{block:#?}"
+            );
+        }
     }
 }
 
