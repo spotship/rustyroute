@@ -23,8 +23,12 @@
 //! not on `PATH` (e.g. a Rust-only contributor without Python), the
 //! test prints a skip message and returns `Ok(())` rather than failing
 //! — matches the spec's "AC1 manual" framing where pre-commit install
-//! is a per-clone setup, not a cargo-test prereq. CI (which installs
-//! pre-commit explicitly) will exercise these tests for real.
+//! is a per-clone setup, not a cargo-test prereq. The CI workflow's
+//! dedicated `pre-commit` job (`.github/workflows/ci.yaml`) installs
+//! `pre-commit` via `pip` and then runs `cargo test --test
+//! pre_commit_e2e` so AC2/AC3/AC4 are exercised for real on every PR;
+//! the other CI jobs (fmt, clippy, test-matrix, ...) do NOT install
+//! pre-commit, so this file silently skips there by design.
 //!
 //! Isolation
 //! ---------
