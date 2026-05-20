@@ -388,9 +388,16 @@ fn ac4_manual_stage_invokes_clippy() {
     // a hook exits 0, leaving only the "Passed" banner and no evidence
     // that cargo+clippy actually ran. With --verbose we see cargo's
     // own `Checking <crate>` banner.
+    //
+    // `CARGO_TERM_COLOR=never` strips cargo's ANSI escape codes so the
+    // substring match below sees `Checking ` (with a real space)
+    // instead of `Checking\x1b[0m ` — `--color never` only controls
+    // pre-commit's own colors, not what cargo emits when it inherits a
+    // TTY env from the CI runner.
     let (st, output) = run(Command::new("pre-commit")
         .current_dir(&repo)
         .env("PATH", &augmented_path)
+        .env("CARGO_TERM_COLOR", "never")
         .args([
             "run",
             "--hook-stage",
@@ -412,18 +419,14 @@ fn ac4_manual_stage_invokes_clippy() {
          pre-commit output:\n{output}"
     );
 
-    // The hook should actually invoke cargo+clippy. cargo prints
-    // `Checking <crate> v<version>` when it starts work, and the
-    // literal entry `cargo clippy --no-deps` appears in pre-commit's
-    // command echo. Either is sufficient evidence of invocation.
-    // We anchor the positive check on cargo's own output (`Checking
-    // <crate>`). The `cargo clippy --no-deps` substring is NOT a
-    // sufficient signal — it's also the hook's `name:` field in
-    // `.pre-commit-config.yaml`, which pre-commit prints regardless
-    // of whether the entry actually executed (e.g. if the clippy
-    // toolchain component is missing).
+    // The hook should actually invoke cargo+clippy. We anchor the
+    // positive check on cargo's own output (`Checking <crate>`). The
+    // `cargo clippy --no-deps` substring is NOT a sufficient signal —
+    // it's also the hook's `name:` field in `.pre-commit-config.yaml`,
+    // which pre-commit prints regardless of whether the entry actually
+    // executed (e.g. if the clippy toolchain component is missing).
     assert!(
-        output.contains("Checking "),
+        output.contains("Checking e2e_root"),
         "AC4 partial: cargo-clippy hook ran at manual stage but pre-commit output \
          does not contain cargo's `Checking <crate>` banner, so clippy did NOT \
          actually execute against the seeded crate. Likely cause: missing clippy \
