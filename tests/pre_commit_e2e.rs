@@ -112,6 +112,21 @@ fn prereqs_available(test_name: &str) -> bool {
     true
 }
 
+/// Returns true if `cargo <subcommand> --version` succeeds with the
+/// cargo-augmented PATH (so rustfmt / clippy-driver discovery uses the
+/// rustup toolchain dir alongside the active `cargo`). Used by AC3 and
+/// AC4 to skip with a clear message when the rustfmt or clippy
+/// toolchain component isn't installed, rather than failing the test
+/// with a misleading pre-commit error.
+fn cargo_subcommand_available(subcommand: &str) -> bool {
+    Command::new(cargo_bin())
+        .env("PATH", cargo_augmented_path())
+        .args([subcommand, "--version"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
 /// Run a command, capture stdout+stderr, return (status, combined output).
 fn run(cmd: &mut Command) -> (std::process::ExitStatus, String) {
     let out = cmd.output().expect("spawn command");
@@ -339,6 +354,20 @@ fn ac3_cargo_fmt_check_fails_on_misformatted_rust() {
     if !prereqs_available("ac3_cargo_fmt_check_fails_on_misformatted_rust") {
         return;
     }
+    // AC3 invokes `cargo fmt --check` via pre-commit. If the rustfmt
+    // toolchain component is missing, the hook would fail for an
+    // unrelated reason (cargo can't find rustfmt) and the test would
+    // surface as a misleading AC3 failure. Skip with a clear message
+    // instead — the dedicated `pre-commit` CI job installs the rustfmt
+    // component so it always runs there.
+    if !cargo_subcommand_available("fmt") {
+        eprintln!(
+            "skipping ac3_cargo_fmt_check_fails_on_misformatted_rust: \
+             `cargo fmt` not available (rustfmt toolchain component missing). \
+             Install with `rustup component add rustfmt`."
+        );
+        return;
+    }
 
     let tmp = tempfile::tempdir().expect("create tempdir");
     let repo = seed_tmp_repo(tmp.path());
@@ -398,6 +427,19 @@ fn ac3_cargo_fmt_check_fails_on_misformatted_rust() {
 #[test]
 fn ac4_manual_stage_invokes_clippy() {
     if !prereqs_available("ac4_manual_stage_invokes_clippy") {
+        return;
+    }
+    // AC4 invokes `cargo clippy` via pre-commit. If clippy-driver isn't
+    // installed, the hook fails for an unrelated reason and the test
+    // surfaces as a misleading AC4 failure. Skip cleanly instead — the
+    // dedicated CI job installs the clippy toolchain component so this
+    // test runs there.
+    if !cargo_subcommand_available("clippy") {
+        eprintln!(
+            "skipping ac4_manual_stage_invokes_clippy: \
+             `cargo clippy` not available (clippy toolchain component missing). \
+             Install with `rustup component add clippy`."
+        );
         return;
     }
 
