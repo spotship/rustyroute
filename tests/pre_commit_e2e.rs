@@ -205,13 +205,24 @@ fn seed_tmp_repo(dir: &Path) -> PathBuf {
 // point of AC2: the rustyroute working tree should be hook-clean.
 //
 // If the suite fails, the test prints pre-commit's stdout/stderr so the
-// failing hook id is visible in CI logs. The test snapshots `git diff
-// --quiet` before and after the run; if the tree was clean going in
-// and pre-commit modified any files, that counts as a hook-modified-tree
-// failure even if pre-commit somehow exited 0 — an auto-fixer that
-// "succeeds" by silently rewriting files would still break AC2's
-// "main-equivalent tree is hook-clean" contract. We capture the diff
-// (for the error message), restore the tree, then assert.
+// failing hook id is visible in CI logs. The test snapshots
+// `git status --porcelain` before and after the run; if the tree was
+// clean going in and pre-commit modified any files, that counts as a
+// hook-modified-tree failure even if pre-commit somehow exited 0 — an
+// auto-fixer that "succeeds" by silently rewriting files would still
+// break AC2's "main-equivalent tree is hook-clean" contract. We
+// capture the diff (for the error message), restore the tree, then
+// assert.
+//
+// If the worktree is NOT clean going in (the contributor has local
+// unstaged/staged/untracked work), the test skips early instead of
+// running the suite — several configured hooks are auto-fixers
+// (end-of-file-fixer, trailing-whitespace, mixed-line-ending) and the
+// drift-recovery path is intentionally disabled when there's
+// pre-existing local work, so running here would silently rewrite the
+// contributor's in-progress changes. AC2 is specifically about a
+// main-equivalent clean tree; running on a dirty tree would be testing
+// a different scenario anyway.
 
 #[test]
 fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
@@ -231,6 +242,25 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
         .args(["status", "--porcelain"]));
     let pre_clean = pre_status_st.success() && pre_status_out.is_empty();
 
+    // If we're not on a clean tree, skip rather than run. Several
+    // configured hooks are auto-fixers (end-of-file-fixer,
+    // trailing-whitespace, mixed-line-ending) and the drift-recovery
+    // path below is disabled when `pre_clean` is false (we don't want
+    // to `git checkout -- .` over a contributor's in-progress work).
+    // Running the hook suite here would therefore silently rewrite
+    // their changes — worse than failing — and AC2 is about a
+    // main-equivalent clean tree anyway, not whatever transient state
+    // is sitting in someone's worktree mid-edit.
+    if !pre_clean {
+        eprintln!(
+            "skipping ac2_pre_commit_run_all_files_passes_on_current_tree: \
+             working tree has local changes (status --porcelain non-empty). \
+             AC2 is verified against a clean tree; rerun after committing \
+             or stashing."
+        );
+        return;
+    }
+
     let (st, output) = run(Command::new("pre-commit").current_dir(&root).args([
         "run",
         "--all-files",
@@ -240,9 +270,10 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
 
     // If a hook is an auto-fixer (end-of-file-fixer, trailing-whitespace,
     // mixed-line-ending) it will both modify files AND return non-zero.
-    // Capture the post-run drift (if we started clean) so we can both
-    // restore the worktree and fail the assertion with a useful diff.
-    let post_drift: Option<String> = if pre_clean {
+    // We early-returned above when the tree wasn't clean, so any drift
+    // observed here came from pre-commit. Capture the post-run diff,
+    // then restore the worktree, then assert.
+    let post_drift: Option<String> = {
         let (post_status_st, post_status_out) = run(Command::new("git")
             .current_dir(&root)
             .args(["status", "--porcelain"]));
@@ -268,12 +299,6 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
                 diff
             })
         }
-    } else {
-        // We started with local changes (unstaged edits, staged work,
-        // or untracked files). Don't touch the worktree, don't assert
-        // on drift — the contributor's own changes would dominate the
-        // diff. AC2's exit-status check below is still meaningful.
-        None
     };
 
     assert!(
