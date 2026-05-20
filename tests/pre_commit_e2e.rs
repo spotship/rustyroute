@@ -34,11 +34,10 @@
 //! ---------
 //! AC3 mutates a worktree and creates a commit. To avoid touching the
 //! checked-out rustyroute repo, the test materialises a throwaway git
-//! repo in `std::env::temp_dir()` with the *real*
-//! `.pre-commit-config.yaml` symlinked/copied in, plus the minimum
-//! Cargo scaffolding so `cargo fmt --check` has something to check.
-//! The test cleans up its tempdir on success and on panic via
-//! `tempfile::TempDir`.
+//! repo via `tempfile::tempdir()` (which auto-cleans on drop, even on
+//! panic) with the *real* `.pre-commit-config.yaml` copied in, plus
+//! the minimum Cargo scaffolding so `cargo fmt --check` has something
+//! to check.
 
 use std::ffi::OsString;
 use std::fs;
@@ -248,9 +247,18 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
             None
         } else {
             let (_diff_st, diff) = run(Command::new("git").current_dir(&root).args(["diff"]));
+            // Safe to fully reset here: the pre-check used
+            // `git status --porcelain` to confirm the tree was truly
+            // clean (no unstaged, no staged, no untracked), so anything
+            // we see now must have come from pre-commit. Restore
+            // tracked-file edits AND remove any untracked artifacts
+            // (`git checkout -- .` alone leaves untracked files behind).
             let _ = run(Command::new("git")
                 .current_dir(&root)
                 .args(["checkout", "--", "."]));
+            let _ = run(Command::new("git")
+                .current_dir(&root)
+                .args(["clean", "-fd"]));
             Some(if diff.is_empty() {
                 post_status_out
             } else {

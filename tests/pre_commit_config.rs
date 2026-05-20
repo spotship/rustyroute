@@ -185,23 +185,40 @@ fn cargo_fmt_check_hook_contract() {
          Windows runners. Split chained commands into separate hooks instead."
     );
 
-    // The entry must run `cargo fmt --check` (with `--check`, not a
-    // bare `cargo fmt` that would silently reformat files instead of
-    // failing on drift).
+    // Find every `entry:` line and check the cargo-fmt-check entries
+    // verbatim (modulo leading whitespace). A `cfg.contains(...)`
+    // substring check would let `entry: cargo fmt --check --all` pass
+    // even though `--all` would silently expand coverage to workspace
+    // members the hook does not intend to format here.
+    let entries: Vec<&str> = cfg
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("entry:"))
+        .collect();
+
+    // The root hook must be `entry: cargo fmt --check` — exactly. No
+    // trailing args (no `--all`, no extra manifest, etc.) — the
+    // sub-package gets its own dedicated hook below.
     assert!(
-        cfg.contains("entry: cargo fmt --check"),
-        "cargo-fmt-check hook entry must be exactly `cargo fmt --check` — without \
-         `--check`, the hook would silently reformat files instead of failing on drift."
+        entries
+            .iter()
+            .any(|line| *line == "entry: cargo fmt --check"),
+        "cargo-fmt-check (root) hook entry must be exactly `cargo fmt --check` — \
+         without `--check`, the hook would silently reformat files instead of \
+         failing on drift; with extra args (e.g. `--all`) the coverage would \
+         silently shift. Found entries: {entries:?}"
     );
 
-    // The downstream hook must explicitly target the sub-package's
-    // manifest. Without `--manifest-path`, cargo finds the root
-    // manifest and re-checks the root crate, missing the sub-package.
+    // The downstream hook must target the sub-package's manifest
+    // explicitly and use `--check`.
     assert!(
-        cfg.contains("--manifest-path tests/downstream_consumer/Cargo.toml --check"),
-        "cargo-fmt-check-downstream hook entry must include `--manifest-path \
-         tests/downstream_consumer/Cargo.toml --check` — without it, cargo would \
-         find the root manifest and skip the sub-package."
+        entries.iter().any(|line| {
+            *line == "entry: cargo fmt --manifest-path tests/downstream_consumer/Cargo.toml --check"
+        }),
+        "cargo-fmt-check-downstream hook entry must be exactly `cargo fmt \
+         --manifest-path tests/downstream_consumer/Cargo.toml --check` — without \
+         `--manifest-path`, cargo would find the root manifest and skip the \
+         sub-package. Found entries: {entries:?}"
     );
 
     // The four contract attributes for a `cargo fmt`-style local hook.
