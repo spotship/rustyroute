@@ -137,7 +137,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - run: pip install pre-commit
+      # Pin `pre-commit` so CI stays reproducible. The e2e tests assert
+      # on specific pre-commit diagnostic wording (e.g. "No hook with
+      # id ..."); an unpinned upstream release could change that
+      # wording and cause nondeterministic CI failures.
+      - run: pip install 'pre-commit==4.6.0'
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: pre-commit

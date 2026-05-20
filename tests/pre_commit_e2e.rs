@@ -55,20 +55,11 @@ fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// Returns `Some(path)` if `pre-commit` is on PATH, else `None`.
-fn pre_commit_on_path() -> Option<PathBuf> {
-    // Use `which`-equivalent logic by trying `pre-commit --version`.
-    let out = Command::new("pre-commit").arg("--version").output().ok()?;
-    if out.status.success() {
-        // The exact path doesn't matter; just signal "available".
-        Some(PathBuf::from("pre-commit"))
-    } else {
-        None
-    }
-}
-
-fn git_on_path() -> bool {
-    Command::new("git")
+/// Returns true if a `--version` probe of `bin` succeeds. Used to test
+/// for `pre-commit` and `git` on PATH without taking a dependency on
+/// the `which` crate.
+fn bin_on_path(bin: &str) -> bool {
+    Command::new(bin)
         .arg("--version")
         .output()
         .map(|o| o.status.success())
@@ -105,14 +96,14 @@ fn cargo_augmented_path() -> OsString {
 /// If pre-commit or git is missing, print why and return false.
 /// Callers should early-return when this is false.
 fn prereqs_available(test_name: &str) -> bool {
-    if pre_commit_on_path().is_none() {
+    if !bin_on_path("pre-commit") {
         eprintln!(
             "skipping {test_name}: pre-commit not found on PATH \
              (install with `pip install pre-commit`)"
         );
         return false;
     }
-    if !git_on_path() {
+    if !bin_on_path("git") {
         eprintln!("skipping {test_name}: git not found on PATH");
         return false;
     }
@@ -227,11 +218,16 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
     }
     let root = repo_root();
 
-    // Snapshot working-tree state before running.
-    let (pre_st, _) = run(Command::new("git")
+    // Snapshot working-tree state before running. `git status
+    // --porcelain` is empty only when the tree has no unstaged
+    // changes, no staged changes, AND no untracked files — `git diff
+    // --quiet` alone would treat a tree with staged or untracked
+    // work as "clean" and the drift-recovery path below would then
+    // `git checkout -- .` over a contributor's in-progress work.
+    let (pre_status_st, pre_status_out) = run(Command::new("git")
         .current_dir(&root)
-        .args(["diff", "--quiet"]));
-    let pre_clean = pre_st.success();
+        .args(["status", "--porcelain"]));
+    let pre_clean = pre_status_st.success() && pre_status_out.is_empty();
 
     let (st, output) = run(Command::new("pre-commit").current_dir(&root).args([
         "run",
@@ -245,23 +241,27 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
     // Capture the post-run drift (if we started clean) so we can both
     // restore the worktree and fail the assertion with a useful diff.
     let post_drift: Option<String> = if pre_clean {
-        let (post_st, _) = run(Command::new("git")
+        let (post_status_st, post_status_out) = run(Command::new("git")
             .current_dir(&root)
-            .args(["diff", "--quiet"]));
-        if post_st.success() {
+            .args(["status", "--porcelain"]));
+        if post_status_st.success() && post_status_out.is_empty() {
             None
         } else {
             let (_diff_st, diff) = run(Command::new("git").current_dir(&root).args(["diff"]));
             let _ = run(Command::new("git")
                 .current_dir(&root)
                 .args(["checkout", "--", "."]));
-            Some(diff)
+            Some(if diff.is_empty() {
+                post_status_out
+            } else {
+                diff
+            })
         }
     } else {
-        // We started dirty (contributor's local edits in progress).
-        // Don't touch the worktree, don't assert on drift — the
-        // contributor's own changes would dominate the diff. AC2's
-        // exit-status check below is still meaningful.
+        // We started with local changes (unstaged edits, staged work,
+        // or untracked files). Don't touch the worktree, don't assert
+        // on drift — the contributor's own changes would dominate the
+        // diff. AC2's exit-status check below is still meaningful.
         None
     };
 

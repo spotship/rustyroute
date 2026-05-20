@@ -82,7 +82,7 @@ To run the managed hooks explicitly (e.g. before pushing):
 
 ```sh
 pre-commit run --all-files
-pre-commit run --hook-stage manual  # runs cargo clippy --no-deps
+pre-commit run --hook-stage manual  # runs cargo clippy --no-deps -- -D warnings
 ```
 
 The pre-commit gate runs `cargo fmt --check` plus lightweight file
