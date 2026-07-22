@@ -1,0 +1,175 @@
+# deny.toml — cargo-deny policy for rustyroute.
+#
+# This file is the source of truth for:
+#   - which licences may appear in our dependency graph,
+#   - which crates we refuse to pull in (transitively or otherwise),
+#   - how we react to RUSTSEC advisories,
+#   - which source registries we trust.
+#
+# Run locally:
+#     cargo install --locked --version "^0.18" cargo-deny
+#     cargo generate-lockfile
+#     cargo deny check
+#
+# Cargo.lock is gitignored for this library crate (see .gitignore:7-13);
+# CI generates one on the fly before invoking cargo-deny. Don't commit
+# Cargo.lock to "fix" a local cargo-deny run.
+#
+# Edits to the licence allowlist below MUST come with a commit message
+# that explains WHICH crate forced the addition and WHY the licence is
+# compatible with rustyroute being distributed under EUPL-1.2.
+
+[graph]
+# Match ci.yaml's `--all-features` posture for clippy / test. Without
+# this, feature-gated transitive deps would slip past the gate.
+all-features = true
+
+# ============================================================================
+# Licences
+# ============================================================================
+[licenses]
+# Ticket-mandated minimum. cargo-deny's SPDX matcher can sometimes
+# guess a licence from a non-canonical LICENSE file; 0.8 confidence
+# is the documented "high-confidence" floor.
+confidence-threshold = 0.8
+
+# ---------------------------------------------------------------------------
+# Allowed licences — rationale (this comment block is LOAD-BEARING).
+#
+# rustyroute is distributed under EUPL-1.2 (Cargo.toml:license,
+# LICENSE file at root). EUPL-1.2 is a copyleft licence; we may
+# incorporate a dependency only if its licence permits redistribution
+# of the combined work under EUPL-1.2 — i.e. permissive licences and
+# the very small set of copyleft licences EUPL-1.2 itself names as
+# compatible (Article 5: GPL-2.0/3.0, AGPL-3.0, OSL-2.1/3.0, EPL-1.0,
+# CeCILL-2.0/2.1, MPL-2.0, LGPL-2.1/3.0). Of those, we deliberately
+# DO NOT allow the GPL family in our dep graph (see "not allowed"
+# below).
+#
+#   EUPL-1.2                       — this crate (Cargo.toml). Required so
+#                                    cargo-deny accepts the root crate.
+#   MIT                            — dominant permissive Rust licence.
+#                                    Imposes only attribution.
+#   Apache-2.0                     — dominant permissive Rust licence
+#                                    with explicit patent grant.
+#   Apache-2.0 WITH LLVM-exception — Apache-2.0 with the LLVM exception
+#                                    that weakens the static-linking
+#                                    requirement. Used by some
+#                                    compiler-adjacent crates.
+#   BSD-2-Clause                   — original BSD licence, permissive.
+#   BSD-3-Clause                   — BSD with non-endorsement clause.
+#   ISC                            — functionally equivalent to MIT.
+#   Unicode-DFS-2016               — old Unicode data-files licence used
+#                                    by some unicode-* crates pre-2024.
+#   Unicode-3.0                    — current Unicode licence. The crate
+#                                    `unicode-ident` (transitively via
+#                                    syn → quote) ships under
+#                                    "(MIT OR Apache-2.0) AND Unicode-3.0";
+#                                    the AND clause forces us to allow
+#                                    it. FSF-approved permissive,
+#                                    BSD-style.
+#   Zlib                           — permissive, very short, BSD-style.
+#                                    Used by some compression crates we
+#                                    may transitively pull in future.
+#   CC0-1.0                        — public-domain dedication, permissive.
+#
+# ---------------------------------------------------------------------------
+# Why GPL-3.0 / AGPL-3.0 / LGPL-3.0 are NOT on the list:
+#
+#   GPL-3.0 is named in EUPL-1.2 Article 5 as a compatible licence, but
+#   compatibility there means "the combined work may be distributed
+#   under GPL-3.0", which RELICENSES rustyroute out of EUPL-1.2 for
+#   any consumer that pulls the affected dep. rustyroute's licensing
+#   promise to downstream is "EUPL-1.2 — you may relicense onward
+#   under Article 5 compatibles AT YOUR OPTION". Pulling a GPL-3.0
+#   transitive removes that option silently. Same logic for AGPL-3.0
+#   (worse, because network-use triggers source-disclosure) and
+#   LGPL-3.0 (the static-vs-dynamic linking distinction does not map
+#   cleanly to Rust monomorphisation).
+#
+#   If a future PR genuinely needs a GPL/AGPL/LGPL dep, the decision
+#   to relicense rustyroute belongs to the project owner, not to a
+#   dependabot bump. This gate forces the conversation.
+# ---------------------------------------------------------------------------
+allow = [
+    "EUPL-1.2",
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+]
+
+# ============================================================================
+# Bans
+# ============================================================================
+[bans]
+# Duplicate versions hurt compile time but blocking on them is too
+# noisy against the current ecosystem (e.g. hashbrown 0.14 + 0.17
+# are both already in our tree via rusqlite/rkyv). Surface as a
+# warning so we can track drift without failing PRs.
+multiple-versions = "warn"
+# `*` in a version requirement is always a bug.
+wildcards = "deny"
+
+deny = [
+    # ENG-4686: prefer rustls over openssl. We have no TLS surface
+    # today, so this is a forward gate — banning openssl-sys forces
+    # any future TLS dep onto rustls (or an explicit, audited
+    # exception via a follow-up deny.toml edit).
+    { crate = "openssl-sys", reason = "rustyroute standardises on rustls; openssl-sys requires a system libssl and brings a dynamic-linking grey area we don't want." },
+]
+
+# Forward-looking churn skip. As of the deny.toml landing commit,
+# only `windows-sys 0.61.2` is in the tree. When future deps re-pin
+# to 0.45 or 0.48 (common — those tracks are still maintained for
+# older windows API crates), the duplicate-versions warning would
+# explode. Skipping those two trees keeps the signal high without
+# hiding genuine duplication of *non*-windows-sys crates.
+skip-tree = [
+    { crate = "windows-sys@0.45" },
+    { crate = "windows-sys@0.48" },
+]
+
+# ============================================================================
+# Advisories
+# ============================================================================
+[advisories]
+# cargo-deny v0.16+ schema notes:
+#   - Vulnerabilities ALWAYS fail the check. There is no
+#     `vulnerability = ...` key in current schema, so we leave it
+#     implicit. The ticket's "deny vulnerability" is satisfied by
+#     the tool's default behaviour.
+#   - `yanked = "deny"` blocks CI on a yanked transitive — yanked
+#     means the upstream actively withdrew that version, which is
+#     stronger evidence of trouble than the ticket's suggested
+#     "warn". The divergence is intentional; see the commit message
+#     introducing this file.
+#   - `unmaintained = "all"` checks every crate (including build /
+#     dev) for RUSTSEC unmaintained ("W-prefixed") advisories.
+yanked = "deny"
+unmaintained = "all"
+
+# Escape hatch for "we know about RUSTSEC-XXXX-XXXX and have a reason
+# it doesn't apply to us". Format rule, enforced by code review:
+#   "RUSTSEC-YYYY-NNNN", # YYYY-MM-DD: <reason>
+# Reviewers MUST refuse PRs that add entries here without both a
+# date and a reason on the same line.
+#
+# Example (commented out — empty by default):
+#   # "RUSTSEC-2020-0071", # 2026-05-20: tracked in ENG-4686; pulled only via build-deps and not part of the published surface.
+ignore = []
+
+# ============================================================================
+# Sources
+# ============================================================================
+[sources]
+# No git deps, no alternate registries.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
