@@ -1,0 +1,71 @@
+name: "release"
+
+# ENG-4692: cargo-dist ("dist") binary-distribution workflow.
+#
+# DORMANT UNTIL A CLI BINARY EXISTS. rustyroute has no [[bin]] target
+# today — the `cli` feature is a forward-declared placeholder (see
+# Cargo.toml:22-25, ENG-4xxx). Until that binary lands, a tag push
+# produces no binaries to attach; the release-plz workflow still
+# publishes the library to crates.io independently.
+#
+# GENERATED-FILE CONTRACT: dist normally *generates* this workflow and
+# will flag hand-edits / out-of-date content on a real run. Before the
+# first tag that should ship binaries, a maintainer MUST regenerate this
+# file (and dist-workspace.toml) with the real dist CLI:
+#     dist init                 # once the [[bin]] target exists
+#     dist generate-ci github
+# and re-pin the dist version in both places.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Own concurrency namespace — must NOT reuse ci-/audit-/release-plz-.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Exception to the `contents: read` norm: dist creates/uploads to the
+# GitHub release for the pushed tag.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.target }}
+      - name: Install dist
+        # Pin MUST match dist-workspace.toml's cargo-dist-version.
+        run: cargo install cargo-dist --version 0.28.0 --locked
+      - name: Build artifacts with dist
+        # dist owns cross-compilation strategy per target.
+        run: dist build --target ${{ matrix.target }} --artifacts=local
+      - name: Upload artifacts to the GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dist host --steps=upload --artifacts=local

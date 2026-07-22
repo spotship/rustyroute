@@ -1,0 +1,40 @@
+# ENG-4692: cargo-dist ("dist") configuration.
+#
+# DORMANT UNTIL A CLI BINARY EXISTS. rustyroute has no [[bin]] target
+# today — the `cli` feature (Cargo.toml:22-25) is a forward-declared
+# placeholder for a future binary (ENG-4xxx). Until that binary lands,
+# `dist build` has nothing to produce; the release-plz workflow still
+# publishes the library to crates.io independently.
+#
+# GENERATED-FILE CONTRACT: dist normally generates
+# .github/workflows/release.yaml from this file and self-checks it on a
+# real run. Before the first tag that should ship binaries, a maintainer
+# MUST regenerate with the real dist CLI (`dist init` once a [[bin]]
+# exists, then `dist generate-ci github`) and re-pin
+# `cargo-dist-version` below.
+
+[workspace]
+members = ["cargo:."]
+
+[dist]
+# Pin verified against the installed dist at implementation time; keep in
+# lock-step with the `cargo install cargo-dist --version` step in
+# .github/workflows/release.yaml.
+cargo-dist-version = "0.28.0"
+ci = ["github"]
+installers = ["shell", "powershell", "homebrew"]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+# Build the (future) CLI binary with all data resolutions enabled.
+features = ["cli"]
+# Homebrew formula target. Requires a `spotship/homebrew-tap` repo and a
+# HOMEBREW_TAP_TOKEN secret before the formula can publish (neither
+# exists yet — non-blocking while the layer is dormant).
+tap = "spotship/homebrew-tap"
+# On PRs, only run `dist plan` (don't attempt full cross-platform builds).
+pr-run-mode = "plan"
