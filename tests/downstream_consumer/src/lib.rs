@@ -12,8 +12,8 @@ pub fn exercise_public_api() -> (u32, u32, u32) {
     assert_eq!(loaded.resolution_km(), 50);
 
     // Path 2: Graph::from_bytes via the static BYTES_50KM const.
-    let static_g = Graph::from_bytes(rustyroute::data::BYTES_50KM)
-        .expect("Graph::from_bytes(BYTES_50KM)");
+    let static_g =
+        Graph::from_bytes(rustyroute::data::BYTES_50KM).expect("Graph::from_bytes(BYTES_50KM)");
 
     // Sanity: both observations agree on shape.
     assert_eq!(loaded.node_count(), static_g.node_count());

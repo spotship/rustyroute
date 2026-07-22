@@ -69,7 +69,27 @@ See <https://developercertificate.org/> for the full text of the DCO.
 
 ## Local validation
 
-Before opening a pull request, run:
+First-time setup — install [pre-commit](https://pre-commit.com) itself
+(via pipx, pip, or Homebrew), then enable the git hook so format and
+file-hygiene checks run on every `git commit`:
+
+```sh
+pipx install pre-commit   # or: pip install pre-commit / brew install pre-commit
+pre-commit install
+```
+
+To run the managed hooks explicitly (e.g. before pushing):
+
+```sh
+pre-commit run --all-files
+pre-commit run --hook-stage manual  # runs cargo clippy --no-deps -- -D warnings
+```
+
+The pre-commit gate runs `cargo fmt --check` plus lightweight file
+hygiene (trailing whitespace, EOF newlines, YAML/TOML/JSON syntax,
+merge-conflict markers, private keys). Clippy and the rest of the
+full local validation suite remain manual. Before opening a pull
+request, run:
 
 ```sh
 cargo fmt --check

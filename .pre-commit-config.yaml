@@ -1,0 +1,71 @@
+# ENG-4687: local pre-commit gate for rustyroute.
+#
+# Mirrors the framework patterns from spotship/backend's config
+# (top-level exclude, default_stages, rev: v5.0.0) and
+# spotship/swiftsure's non-Python hygiene baseline. Substitutes
+# `cargo fmt --check` for Python-specific linting. Clippy is opt-in
+# via --hook-stage manual because it is too slow for every commit. CI
+# (.github/workflows/ci.yaml) is the network-side enforcement; this
+# file is the laptop-side early signal.
+#
+# Locked by tests/pre_commit_config.rs — see that file for the
+# invariants asserted against silent drift.
+
+exclude: |
+  (?x)(
+    ^target/|
+    ^data/|
+    ^vendor/eurostat-marnet/.*\.gpkg$|
+    \.rkyv$
+  )
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+      - id: check-executables-have-shebangs
+      - id: check-vcs-permalinks
+      - id: forbid-new-submodules
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt-check
+        # Checks the root crate. A second hook
+        # (`cargo-fmt-check-downstream`) covers the nested
+        # `tests/downstream_consumer/` sub-package, which is its own
+        # `[package]` (not a workspace member) — so the root
+        # `cargo fmt --check` does NOT traverse into it. The two
+        # invocations live in separate hooks rather than chaining a
+        # single shell command, so neither entry depends on a shell
+        # being available — relevant on Windows CI runners.
+        name: cargo fmt --check (root)
+        entry: cargo fmt --check
+        language: system
+        pass_filenames: false
+        types: [rust]
+      - id: cargo-fmt-check-downstream
+        name: cargo fmt --check (downstream_consumer)
+        entry: cargo fmt --manifest-path tests/downstream_consumer/Cargo.toml --check
+        language: system
+        pass_filenames: false
+        types: [rust]
+      - id: cargo-clippy
+        name: cargo clippy --no-deps
+        entry: cargo clippy --no-deps -- -D warnings
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [manual]
