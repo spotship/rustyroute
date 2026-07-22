@@ -25,6 +25,7 @@ data-100km = []
 cli = ["data-5km", "data-10km", "data-20km", "data-50km", "data-100km"]
 
 [dependencies]
+pathfinding = "4"
 rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck"] }
 thiserror = "1"
 
