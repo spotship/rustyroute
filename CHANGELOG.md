@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Automated release pipeline (ENG-4692): `release-plz` opens a
+  `chore: release vX.Y.Z` PR from conventional commits and, on merge,
+  publishes to crates.io and creates the GitHub release/tag;
+  `cargo-dist` config + `release.yaml` provide cross-platform binary
+  distribution (dormant until a CLI binary lands — see
+  `dist-workspace.toml`). Seeds this `CHANGELOG.md`, which `release-plz`
+  maintains going forward.
+
 ## [0.1.0] - 2026-07-22
 
 ### Added
