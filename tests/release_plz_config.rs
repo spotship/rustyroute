@@ -156,6 +156,23 @@ fn release_plz_workflow_references_both_tokens() {
 }
 
 #[test]
+fn release_plz_workflow_prefers_pat_for_downstream_triggers() {
+    let wf = read_workflow();
+    // A ref created with the default GITHUB_TOKEN does not trigger other
+    // workflows (GitHub recursion guard), so the vX.Y.Z tag must be
+    // pushed with a PAT / GitHub App token (RELEASE_PLZ_TOKEN) for
+    // release.yaml to fire. Lock in that the workflow reaches for that
+    // secret (with a documented GITHUB_TOKEN fallback) rather than the
+    // default token alone.
+    assert!(
+        wf.contains("RELEASE_PLZ_TOKEN"),
+        "release-plz.yaml must source the action token from RELEASE_PLZ_TOKEN \
+         (a PAT / GitHub App token) so the pushed vX.Y.Z tag triggers \
+         release.yaml — the default GITHUB_TOKEN alone cannot."
+    );
+}
+
+#[test]
 fn release_plz_workflow_checkout_uses_full_history() {
     let wf = read_workflow();
     assert!(
@@ -173,6 +190,12 @@ fn release_plz_workflow_grants_contents_write() {
         "release-plz.yaml must declare `contents: write` — the deliberate \
          exception to the repo-wide contents: read norm (it pushes tags / \
          creates the GH release)."
+    );
+    assert!(
+        wf.contains("pull-requests: write"),
+        "release-plz.yaml must declare `pull-requests: write` — release-plz \
+         needs it to open/update the release PR (without it, PR creation 403s). \
+         Just as load-bearing as contents: write; lock it in too."
     );
 }
 

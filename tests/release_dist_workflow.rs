@@ -100,6 +100,32 @@ fn dist_workspace_toml_pins_cargo_dist_version() {
     );
 }
 
+#[test]
+fn release_workflow_dist_version_matches_config() {
+    // Single-source-of-truth cross-file guard (same pattern as
+    // ci_workflow.rs:86-118's MSRV-sync test): the `cargo install
+    // cargo-dist --version X` step in release.yaml MUST install the exact
+    // version dist-workspace.toml was authored against. A bump to one file
+    // without the other silently desyncs the CI-installed dist from its
+    // config, with nothing else catching it.
+    let toml = read_dist_toml();
+    let line = toml
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("cargo-dist-version"))
+        .expect("dist-workspace.toml must set cargo-dist-version");
+    let version = line
+        .trim_start_matches([' ', '\t', '='])
+        .trim()
+        .trim_matches('"');
+    let wf = read_workflow();
+    assert!(
+        wf.contains(&format!("--version {version}")),
+        "release.yaml's `cargo install cargo-dist --version` must match \
+         dist-workspace.toml cargo-dist-version = \"{version}\" — keep the \
+         installed dist version in lock-step with the config it targets."
+    );
+}
+
 // --- release.yaml ---
 
 #[test]
