@@ -142,6 +142,15 @@ jobs:
       # id ..."); an unpinned upstream release could change that
       # wording and cause nondeterministic CI failures.
       - run: pip install 'pre-commit==4.6.0'
+      # Cache the hook environments pre-commit builds under
+      # ~/.cache/pre-commit (the pre-commit-hooks v5 repo clone + its
+      # venv). Keyed on the config hash so a hook/rev change busts the
+      # cache; avoids re-cloning on every run and reduces flakiness from
+      # transient network errors.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: pre-commit
