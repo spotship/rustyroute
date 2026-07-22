@@ -145,13 +145,25 @@ fn release_plz_workflow_uses_action_v0_5() {
 #[test]
 fn release_plz_workflow_references_both_tokens() {
     let wf = read_workflow();
+    // Assert the actual `env:` mappings, not any occurrence — the header
+    // comments also mention these token names, so a bare `contains` would
+    // pass even if the env wiring were deleted (same windowing discipline
+    // as audit_workflow.rs:326-345 scoping to a block).
     assert!(
-        wf.contains("GITHUB_TOKEN"),
-        "release-plz.yaml must pass GITHUB_TOKEN to the action."
+        wf.lines().any(|l| {
+            let t = l.trim();
+            t.starts_with("GITHUB_TOKEN:") && t.contains("secrets.")
+        }),
+        "release-plz.yaml must wire GITHUB_TOKEN from a secret in the action's \
+         env: mapping (not merely mention it in a comment)."
     );
     assert!(
-        wf.contains("CARGO_REGISTRY_TOKEN"),
-        "release-plz.yaml must pass CARGO_REGISTRY_TOKEN (crates.io publish) to the action."
+        wf.lines().any(|l| {
+            let t = l.trim();
+            t.starts_with("CARGO_REGISTRY_TOKEN:") && t.contains("secrets.CARGO_REGISTRY_TOKEN")
+        }),
+        "release-plz.yaml must wire CARGO_REGISTRY_TOKEN from secrets in the env: mapping \
+         (crates.io publish)."
     );
 }
 
@@ -164,10 +176,15 @@ fn release_plz_workflow_prefers_pat_for_downstream_triggers() {
     // release.yaml to fire. Lock in that the workflow reaches for that
     // secret (with a documented GITHUB_TOKEN fallback) rather than the
     // default token alone.
+    // Assert the real env mapping sources from secrets.RELEASE_PLZ_TOKEN,
+    // not just that the name appears somewhere (it also appears in comments).
     assert!(
-        wf.contains("RELEASE_PLZ_TOKEN"),
-        "release-plz.yaml must source the action token from RELEASE_PLZ_TOKEN \
-         (a PAT / GitHub App token) so the pushed vX.Y.Z tag triggers \
+        wf.lines().any(|l| {
+            let t = l.trim();
+            t.starts_with("GITHUB_TOKEN:") && t.contains("secrets.RELEASE_PLZ_TOKEN")
+        }),
+        "release-plz.yaml must source the action token from secrets.RELEASE_PLZ_TOKEN \
+         in the env: mapping (not merely a comment) so the pushed vX.Y.Z tag triggers \
          release.yaml — the default GITHUB_TOKEN alone cannot."
     );
 }
@@ -185,17 +202,24 @@ fn release_plz_workflow_checkout_uses_full_history() {
 #[test]
 fn release_plz_workflow_grants_contents_write() {
     let wf = read_workflow();
+    // Match the actual permission entries as standalone (trimmed) lines,
+    // not any occurrence — the header comment also prints "(contents: write)"
+    // and "(pull-requests: write)" in prose, so a bare `contains` would pass
+    // even if the permissions: block were removed.
     assert!(
-        wf.contains("permissions:") && wf.contains("contents: write"),
-        "release-plz.yaml must declare `contents: write` — the deliberate \
-         exception to the repo-wide contents: read norm (it pushes tags / \
-         creates the GH release)."
+        wf.contains("permissions:"),
+        "release-plz.yaml must declare a permissions: block."
     );
     assert!(
-        wf.contains("pull-requests: write"),
-        "release-plz.yaml must declare `pull-requests: write` — release-plz \
-         needs it to open/update the release PR (without it, PR creation 403s). \
-         Just as load-bearing as contents: write; lock it in too."
+        wf.lines().any(|l| l.trim() == "contents: write"),
+        "release-plz.yaml permissions: must grant `contents: write` as an actual entry \
+         (not just a comment) — the deliberate exception to the contents: read norm \
+         (it pushes tags / creates the GH release)."
+    );
+    assert!(
+        wf.lines().any(|l| l.trim() == "pull-requests: write"),
+        "release-plz.yaml permissions: must grant `pull-requests: write` as an actual entry \
+         — release-plz needs it to open/update the release PR (without it, PR creation 403s)."
     );
 }
 

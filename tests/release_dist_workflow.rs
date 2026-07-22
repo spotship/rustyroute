@@ -90,13 +90,18 @@ fn dist_workspace_toml_enables_cli_feature() {
 #[test]
 fn dist_workspace_toml_pins_cargo_dist_version() {
     let toml = read_dist_toml();
-    // Presence-only: the pinned version legitimately drifts on dist
-    // upgrades, so we don't hardcode the value (same spirit as
-    // ci_workflow.rs reading MSRV from Cargo.toml rather than duplicating).
+    // Presence-only on the VALUE (not the version number, which legitimately
+    // drifts — same spirit as ci_workflow.rs reading MSRV from Cargo.toml).
+    // Match the actual key assignment line, not any occurrence: the header
+    // comment also says "re-pin `cargo-dist-version`", so a bare `contains`
+    // would pass even if the real key were deleted.
     assert!(
-        toml.contains("cargo-dist-version"),
-        "dist-workspace.toml must pin `cargo-dist-version` so the workflow \
-         installs a reproducible dist version."
+        toml.lines().any(|l| {
+            let t = l.trim();
+            t.starts_with("cargo-dist-version") && t.contains('=')
+        }),
+        "dist-workspace.toml must set `cargo-dist-version = \"…\"` as an actual key \
+         (not just a comment mention) so the workflow installs a reproducible dist version."
     );
 }
 
