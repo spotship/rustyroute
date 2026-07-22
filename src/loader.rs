@@ -346,8 +346,13 @@ fn scale_km(weight_km: f32) -> u64 {
 }
 
 /// Haversine great-circle distance in km between two `(lat, lng)`
-/// points in decimal degrees. Mirrors `build/geometry.rs::haversine_km`
-/// (a build-only module, not linked into the library).
+/// points in decimal degrees.
+///
+/// Uses the same formula and [`EARTH_RADIUS_KM`] as the build-time
+/// `build/geometry.rs::haversine_km` (a build-only module, not linked
+/// into the library), but note the **argument order differs**: the
+/// build function takes `(lng, lat)`, whereas this one takes
+/// `(lat, lng)` to match the public [`Graph::route`] coordinate order.
 fn haversine_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
     let (lat1_r, lat2_r) = (lat1.to_radians(), lat2.to_radians());
     let dlat = (lat2 - lat1).to_radians();
