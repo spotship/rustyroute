@@ -276,12 +276,16 @@ fn ac2_pre_commit_run_all_files_passes_on_current_tree() {
         return;
     }
 
-    let (st, output) = run(Command::new("pre-commit").current_dir(&root).args([
-        "run",
-        "--all-files",
-        "--color",
-        "never",
-    ]));
+    // Pre-commit's fmt hooks shell out to `cargo`/`rustfmt`; on Windows
+    // those live next to the launching `cargo`, not on the inherited
+    // PATH. Pass the cargo-augmented PATH (matching AC3/AC4) so AC2 is
+    // cross-platform.
+    let augmented_path = cargo_augmented_path();
+
+    let (st, output) = run(Command::new("pre-commit")
+        .current_dir(&root)
+        .env("PATH", &augmented_path)
+        .args(["run", "--all-files", "--color", "never"]));
 
     // If a hook is an auto-fixer (end-of-file-fixer, trailing-whitespace,
     // mixed-line-ending) it will both modify files AND return non-zero.
