@@ -73,17 +73,18 @@ fn changelog_has_v0_1_0_entry() {
 }
 
 /// The version in the newest *released* heading: the first `## [X.Y.Z]`
-/// after the (unversioned) `## [Unreleased]` section. Returns None if no
-/// released heading exists.
+/// after the (unversioned) `## [Unreleased]` section. The search is
+/// anchored to the text *after* `## [Unreleased]` (falling back to the
+/// whole file if that section is absent), so a stray release heading
+/// above `[Unreleased]` cannot be mistaken for the newest release.
+/// Returns None if no released heading exists.
 fn newest_released_version(changelog: &str) -> Option<String> {
-    changelog.lines().find_map(|l| {
-        let t = l.trim();
-        let inner = t.strip_prefix("## [")?.split_once(']')?.0;
-        if inner.eq_ignore_ascii_case("Unreleased") {
-            None
-        } else {
-            Some(inner.to_string())
-        }
+    let after_unreleased = changelog
+        .split_once("## [Unreleased]")
+        .map_or(changelog, |(_, rest)| rest);
+    after_unreleased.lines().find_map(|l| {
+        let inner = l.trim().strip_prefix("## [")?.split_once(']')?.0;
+        (!inner.eq_ignore_ascii_case("Unreleased")).then(|| inner.to_string())
     })
 }
 
