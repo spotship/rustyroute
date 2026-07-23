@@ -167,10 +167,19 @@ fn release_workflow_triggers_on_version_tag_push() {
 #[test]
 fn release_workflow_grants_contents_write() {
     let wf = read_workflow();
+    // Match the actual permission entry as a standalone (trimmed) line, not
+    // any occurrence — the header comment references `contents: read`/`write`
+    // in prose, so a bare `contains` would pass even if the permissions:
+    // block were removed (same pattern as release_plz_config.rs:202-223).
     assert!(
-        wf.contains("permissions:") && wf.contains("contents: write"),
-        "release.yaml must declare `contents: write` — dist creates/uploads to \
-         the GitHub release for the pushed tag."
+        wf.contains("permissions:"),
+        "release.yaml must declare a permissions: block."
+    );
+    assert!(
+        wf.lines().any(|l| l.trim() == "contents: write"),
+        "release.yaml permissions: must grant `contents: write` as an actual entry \
+         (not just a comment) — dist creates/uploads to the GitHub release for the \
+         pushed tag."
     );
 }
 

@@ -3,7 +3,8 @@
 //! CHANGELOG.md is hand-seeded now and maintained by release-plz going
 //! forward (conventional-commit → Keep-a-Changelog entries). These tests
 //! lock the preamble, the seeded v0.1.0 entry, and — most importantly —
-//! that the newest released heading matches Cargo.toml's `version`, the
+//! that the *newest released* heading (the first `## [X.Y.Z]` after
+//! `## [Unreleased]`) matches Cargo.toml's `version`, the
 //! single-source-of-truth guard modelled on
 //! tests/ci_workflow.rs:86-118's MSRV-sync test.
 //!
@@ -71,14 +72,34 @@ fn changelog_has_v0_1_0_entry() {
     );
 }
 
+/// The version in the newest *released* heading: the first `## [X.Y.Z]`
+/// after the (unversioned) `## [Unreleased]` section. Returns None if no
+/// released heading exists.
+fn newest_released_version(changelog: &str) -> Option<String> {
+    changelog.lines().find_map(|l| {
+        let t = l.trim();
+        let inner = t.strip_prefix("## [")?.split_once(']')?.0;
+        if inner.eq_ignore_ascii_case("Unreleased") {
+            None
+        } else {
+            Some(inner.to_string())
+        }
+    })
+}
+
 #[test]
 fn changelog_newest_version_matches_cargo_toml() {
     let cl = read_changelog();
     let version = cargo_version();
-    let needle = format!("## [{version}]");
-    assert!(
-        cl.contains(&needle),
-        "CHANGELOG.md must contain a `{needle}` heading matching Cargo.toml \
-         version = \"{version}\" — single source of truth. Bump both together."
+    // Assert the NEWEST released heading matches Cargo.toml, not merely that
+    // a matching heading exists somewhere: a bare `contains` would still pass
+    // if a newer, mismatched release heading were added above it.
+    let newest = newest_released_version(&cl).unwrap_or_else(|| {
+        panic!("CHANGELOG.md has no released `## [X.Y.Z]` heading after `## [Unreleased]`.")
+    });
+    assert_eq!(
+        newest, version,
+        "CHANGELOG.md's newest released heading is `## [{newest}]`, but Cargo.toml \
+         version = \"{version}\" — the newest entry must match. Bump both together."
     );
 }
