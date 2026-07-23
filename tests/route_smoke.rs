@@ -4,7 +4,7 @@
 //! lives in ENG-4681.
 #![cfg(feature = "data-50km")]
 
-use rustyroute::{Graph, RouteError};
+use rustyroute::{EdgeId, Graph, RouteError};
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
@@ -95,7 +95,7 @@ fn edges_for_groups_union_and_unknown() {
 #[test]
 fn all_edges_blocked_yields_no_route() {
     let g = graph();
-    let all: HashSet<u32> = (0..g.edge_count()).collect();
+    let all: HashSet<EdgeId> = (0..g.edge_count()).collect();
     match g.route(MED, RED_SEA, &all) {
         Err(RouteError::NoRoute) => {}
         other => panic!("expected NoRoute, got {other:?}"),
