@@ -6,9 +6,16 @@
 
 use rustyroute::{Graph, RouteError};
 use std::collections::HashSet;
+use std::sync::OnceLock;
 
-fn graph() -> Graph {
-    Graph::from_bytes(rustyroute::data::BYTES_50KM).expect("load 50km graph")
+// Load and validate the 50km archive once for the whole test binary.
+// `Graph::from_bytes` re-runs rkyv's checked access over the (large)
+// archive on every call, so caching a single handle in a `OnceLock`
+// avoids repeating that work per test. Every routing method takes
+// `&self`, so a shared `&'static Graph` keeps test semantics identical.
+fn graph() -> &'static Graph {
+    static G: OnceLock<Graph> = OnceLock::new();
+    G.get_or_init(|| Graph::from_bytes(rustyroute::data::BYTES_50KM).expect("load 50km graph"))
 }
 
 // Eastern Mediterranean and central Red Sea. The only short maritime

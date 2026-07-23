@@ -458,11 +458,17 @@ impl Graph {
         let successors = move |&n: &NodeId| -> Vec<(NodeId, u64)> {
             let lo = offsets[n as usize].to_native() as usize;
             let hi = offsets[n as usize + 1].to_native() as usize;
-            edges[lo..hi]
-                .iter()
-                .filter(|e| !blocked.contains(&e.edge_id.to_native()))
-                .map(|e| (e.target.to_native(), scale_km(e.weight_km.to_native())))
-                .collect()
+            // Preallocate the CSR row width (`hi - lo`, the pre-filter
+            // upper bound) so this hot-loop closure never reallocates:
+            // a filtered `collect()` can only see the iterator's lower
+            // size hint (0) and would grow the Vec repeatedly.
+            let mut out = Vec::with_capacity(hi - lo);
+            for e in &edges[lo..hi] {
+                if !blocked.contains(&e.edge_id.to_native()) {
+                    out.push((e.target.to_native(), scale_km(e.weight_km.to_native())));
+                }
+            }
+            out
         };
 
         let (path, _cost) =
