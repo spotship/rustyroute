@@ -1,0 +1,24 @@
+# ENG-4692: release-plz configuration. release-plz turns conventional
+# commits into a "chore: release vX.Y.Z" PR (version bump + CHANGELOG);
+# merging that PR publishes rustyroute to crates.io and creates the GH
+# release, whose tag (vX.Y.Z) triggers .github/workflows/release.yaml
+# (cargo-dist) to build and attach binaries.
+#
+# release-plz owns the crates.io publish; dist does NOT publish to
+# crates.io (it only attaches binaries + a homebrew formula) — so there
+# is no double-publish.
+
+[workspace]
+# Release PR title. release-plz uses Tera templating, so the version
+# placeholder is `{{ version }}` (double brace), NOT `{version}`.
+pr_name = "chore: release v{{ version }}"
+# Maintain CHANGELOG.md from conventional commits.
+changelog_update = true
+
+[[package]]
+name = "rustyroute"
+# Create a GitHub release on publish — this is what pushes the vX.Y.Z
+# tag that the dist release workflow keys on.
+git_release_enable = true
+# Tag format must match release.yaml's `v*.*.*` trigger.
+git_tag_name = "v{{ version }}"

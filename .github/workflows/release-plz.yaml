@@ -1,0 +1,62 @@
+name: "release-plz"
+
+# ENG-4692: conventional-commit release automation. On every push to
+# main, release-plz opens/updates a "chore: release vX.Y.Z" PR (version
+# bump + CHANGELOG from conventional commits); when that PR merges, the
+# same action publishes the crate to crates.io and creates the GH
+# release, which pushes the vX.Y.Z tag.
+#
+# IMPORTANT — the tag only triggers .github/workflows/release.yaml when
+# release-plz runs with a PAT / GitHub App token (RELEASE_PLZ_TOKEN),
+# NOT the default GITHUB_TOKEN: GitHub does not fire workflows for
+# refs created with the default token (recursion guard). See the token
+# note on the "Run release-plz" step below.
+#
+# Inlined (not a spotship/.github reusable workflow) for the same reason
+# as ci.yaml / clickup.yaml:1-8 — rustyroute is public and the org's
+# shared workflows are private-scoped.
+
+on:
+  push:
+    branches: [main]
+
+# Own concurrency namespace — must NOT reuse ci-/audit-. release-plz is
+# idempotent per commit; do not cancel in progress (a cancelled publish
+# could skip a release).
+concurrency:
+  group: release-plz-${{ github.ref }}
+  cancel-in-progress: false
+
+# Deliberate exception to the repo-wide `contents: read` norm
+# (ci.yaml:22-23): release-plz pushes a tag + creates a GH release
+# (contents: write) and opens the release PR (pull-requests: write).
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-plz:
+    name: release-plz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # release-plz walks conventional-commit history back to the
+          # last release tag — needs full history, not a shallow clone.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        uses: MarcoIeni/release-plz-action@v0.5
+        env:
+          # A ref (tag/PR) created with the default GITHUB_TOKEN does NOT
+          # trigger other workflows (GitHub's recursion guard) — so the
+          # vX.Y.Z tag release-plz pushes would not fire release.yaml.
+          # Prefer a PAT or GitHub App token in the RELEASE_PLZ_TOKEN repo
+          # secret (contents + pull-requests write) so the tag triggers
+          # the dist workflow. Falls back to GITHUB_TOKEN: release-plz's
+          # own PR creation + crates.io publish still work, but the
+          # tag -> release.yaml handoff stays inert until RELEASE_PLZ_TOKEN
+          # is configured.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
