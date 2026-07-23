@@ -11,7 +11,63 @@
 //! [`GraphData`]: crate::graph::GraphData
 
 use crate::graph::{ArchivedGraphData, MAGIC, SCHEMA_VERSION};
+use std::collections::HashSet;
 use std::path::PathBuf;
+
+/// Undirected edge id: index into [`GraphData::edge_endpoints`] and
+/// [`GraphData::undirected_weights`]. The A→B and B→A half-edges of one
+/// undirected edge share the same `EdgeId`.
+///
+/// [`GraphData::edge_endpoints`]: crate::graph::GraphData::edge_endpoints
+/// [`GraphData::undirected_weights`]: crate::graph::GraphData::undirected_weights
+pub type EdgeId = u32;
+
+/// Node id: index into [`GraphData::nodes`] and the CSR row-pointer
+/// table [`GraphData::node_offsets`].
+///
+/// [`GraphData::nodes`]: crate::graph::GraphData::nodes
+/// [`GraphData::node_offsets`]: crate::graph::GraphData::node_offsets
+pub type NodeId = u32;
+
+/// A shortest path returned by [`Graph::route`].
+///
+/// Coordinates are `(lat, lng)` decimal degrees — one per node along
+/// the path, in traversal order — widened from the graph's `f32` node
+/// coordinates to `f64` for the public API. HTTP-layer callers convert
+/// to `GeoJSON` `[lng, lat]` order at the boundary (Design 019
+/// §"Per request").
+#[derive(Clone, Debug, PartialEq)]
+pub struct Route {
+    /// `(lat, lng)` decimal degrees, one per node along the path.
+    pub coordinates: Vec<(f64, f64)>,
+    /// Total path length in kilometres, summed from the canonical
+    /// undirected edge weights (not from the scaled integer search
+    /// cost, to avoid drift).
+    pub distance_km: f64,
+    /// Undirected edge ids traversed, in order. Empty for a self-route.
+    pub edge_ids: Vec<EdgeId>,
+}
+
+/// Errors returned by [`Graph::route`] and [`Graph::edges_for_groups`].
+#[derive(Debug, thiserror::Error)]
+pub enum RouteError {
+    /// `from` was not a finite `(lat, lng)` within
+    /// `lat ∈ [-90, 90]`, `lng ∈ [-180, 180]`.
+    #[error("from coordinate out of bounds: {0:?}")]
+    BadFromCoord((f64, f64)),
+    /// `to` was not a finite `(lat, lng)` within
+    /// `lat ∈ [-90, 90]`, `lng ∈ [-180, 180]`.
+    #[error("to coordinate out of bounds: {0:?}")]
+    BadToCoord((f64, f64)),
+    /// A name passed to [`Graph::edges_for_groups`] did not match any
+    /// of the baked-in edge groups.
+    #[error("unknown edge group: {0}")]
+    UnknownGroup(String),
+    /// No path exists between the snapped endpoints given the blocked
+    /// edge set (e.g. every route to an island was blocked).
+    #[error("no route found")]
+    NoRoute,
+}
 
 /// Errors returned by [`Graph::from_bytes`] and [`Graph::load`].
 #[derive(Debug, thiserror::Error)]
@@ -252,6 +308,225 @@ impl Graph {
     /// `edge_count` (all self-loops) and `2 * edge_count`.
     pub fn directed_edge_count(&self) -> u32 {
         self.archived().edges.len() as u32
+    }
+}
+
+// =====================================================================
+// ENG-4680: routing API — Dijkstra shortest path with an in-line
+// blocked-edge filter, plus edge-group lookup.
+//
+// The routing types (`Route` / `RouteError` / `EdgeId` / `NodeId`) and
+// the `impl Graph` live here rather than in `src/graph.rs`: they are
+// runtime API (this file's stated role — see graph.rs's module doc),
+// they need `Graph` / `archived()` (defined here), and keeping them out
+// of `graph.rs` avoids perturbing the build script and the three test
+// crates that re-include `graph.rs` standalone via `#[path]`.
+// =====================================================================
+
+/// Multiplier converting kilometres to integer micro-kilometres (µkm).
+/// Dijkstra runs on integer cost so its `Ord` is total and sidesteps
+/// float NaN ordering; µkm (1 mm) resolution is far finer than the
+/// graph's ~km edge weights.
+const UKM_PER_KM: f64 = 1_000_000.0;
+
+/// Earth radius (km), matching `build/geometry.rs::EARTH_RADIUS_KM` so
+/// nearest-node snapping uses the same metric that produced the baked
+/// edge weights.
+const EARTH_RADIUS_KM: f64 = 6371.0088;
+
+/// Scale a kilometre weight to integer µkm for Dijkstra's cost.
+fn scale_km(weight_km: f32) -> u64 {
+    // Non-negative by construction (haversine distances); `round` keeps
+    // the nearest µkm. The cast is saturating-safe: the largest single
+    // edge is well under 2^64 µkm.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    {
+        (f64::from(weight_km) * UKM_PER_KM).round() as u64
+    }
+}
+
+/// Haversine great-circle distance in km between two `(lat, lng)`
+/// points in decimal degrees.
+///
+/// Uses the same formula and [`EARTH_RADIUS_KM`] as the build-time
+/// `build/geometry.rs::haversine_km` (a build-only module, not linked
+/// into the library), but note the **argument order differs**: the
+/// build function takes `(lng, lat)`, whereas this one takes
+/// `(lat, lng)` to match the public [`Graph::route`] coordinate order.
+fn haversine_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
+    let (lat1_r, lat2_r) = (lat1.to_radians(), lat2.to_radians());
+    let dlat = (lat2 - lat1).to_radians();
+    let dlng = (lng2 - lng1).to_radians();
+    let a = (dlat / 2.0).sin().powi(2) + lat1_r.cos() * lat2_r.cos() * (dlng / 2.0).sin().powi(2);
+    2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
+}
+
+/// `true` if `(lat, lng)` is finite and within valid geographic bounds
+/// (`lat ∈ [-90, 90]`, `lng ∈ [-180, 180]`).
+fn coord_in_bounds((lat, lng): (f64, f64)) -> bool {
+    lat.is_finite()
+        && lng.is_finite()
+        && (-90.0..=90.0).contains(&lat)
+        && (-180.0..=180.0).contains(&lng)
+}
+
+impl Graph {
+    /// Snap a `(lat, lng)` coordinate to the nearest node by haversine
+    /// distance via a linear scan over the node table. Returns `None`
+    /// only for an empty graph.
+    ///
+    /// Linear scan is acceptable up to the 5 km resolution (~few
+    /// hundred k nodes); a k-d tree upgrade is deferred to ENG-4690.
+    fn nearest_node(&self, (lat, lng): (f64, f64)) -> Option<NodeId> {
+        let mut best: Option<(NodeId, f64)> = None;
+        for (i, nc) in self.archived().nodes.iter().enumerate() {
+            let d = haversine_km(
+                lat,
+                lng,
+                f64::from(nc.lat.to_native()),
+                f64::from(nc.lng.to_native()),
+            );
+            if best.is_none_or(|(_, bd)| d < bd) {
+                // `i` is a valid node index, so it fits `u32` by schema.
+                #[allow(clippy::cast_possible_truncation)]
+                let id = i as NodeId;
+                best = Some((id, d));
+            }
+        }
+        best.map(|(id, _)| id)
+    }
+
+    /// Shortest path from `from` to `to` (both `(lat, lng)` decimal
+    /// degrees), snapped to the nearest graph node, avoiding every
+    /// undirected edge in `blocked`.
+    ///
+    /// Blocking is enforced in-line by the successor closure — the
+    /// graph is neither mutated nor copied.
+    ///
+    /// # Errors
+    ///
+    /// - [`RouteError::BadFromCoord`] / [`RouteError::BadToCoord`] if an
+    ///   endpoint is non-finite or outside `lat ∈ [-90, 90]`,
+    ///   `lng ∈ [-180, 180]`.
+    /// - [`RouteError::NoRoute`] if no unblocked path connects the
+    ///   snapped endpoints (or the graph is empty).
+    ///
+    /// # Panics
+    ///
+    /// Never in practice. Reconstruction re-locates the forward edge of
+    /// each hop Dijkstra already relaxed across; the internal
+    /// `expect` guards that invariant and firing it would signal graph
+    /// corruption, not a caller error.
+    pub fn route(
+        &self,
+        from: (f64, f64),
+        to: (f64, f64),
+        blocked: &HashSet<EdgeId>,
+    ) -> Result<Route, RouteError> {
+        if !coord_in_bounds(from) {
+            return Err(RouteError::BadFromCoord(from));
+        }
+        if !coord_in_bounds(to) {
+            return Err(RouteError::BadToCoord(to));
+        }
+
+        let start = self.nearest_node(from).ok_or(RouteError::NoRoute)?;
+        let goal = self.nearest_node(to).ok_or(RouteError::NoRoute)?;
+
+        let g = self.archived();
+        let node_latlng = |n: NodeId| -> (f64, f64) {
+            let nc = &g.nodes[n as usize];
+            (f64::from(nc.lat.to_native()), f64::from(nc.lng.to_native()))
+        };
+
+        // Self-route: both endpoints snap to the same node.
+        if start == goal {
+            return Ok(Route {
+                coordinates: vec![node_latlng(start)],
+                distance_km: 0.0,
+                edge_ids: Vec::new(),
+            });
+        }
+
+        let offsets = g.node_offsets.as_slice();
+        let edges = g.edges.as_slice();
+
+        // CSR neighbours of `n`, skipping blocked undirected edges, cost
+        // in integer µkm. `move` captures the (Copy) slice references and
+        // `blocked` so the closure can outlive this stack frame inside
+        // Dijkstra.
+        let successors = move |&n: &NodeId| -> Vec<(NodeId, u64)> {
+            let lo = offsets[n as usize].to_native() as usize;
+            let hi = offsets[n as usize + 1].to_native() as usize;
+            // Preallocate the CSR row width (`hi - lo`, the pre-filter
+            // upper bound) so this hot-loop closure never reallocates:
+            // a filtered `collect()` can only see the iterator's lower
+            // size hint (0) and would grow the Vec repeatedly.
+            let mut out = Vec::with_capacity(hi - lo);
+            for e in &edges[lo..hi] {
+                if !blocked.contains(&e.edge_id.to_native()) {
+                    out.push((e.target.to_native(), scale_km(e.weight_km.to_native())));
+                }
+            }
+            out
+        };
+
+        let (path, _cost) =
+            pathfinding::directed::dijkstra::dijkstra(&start, successors, |&n| n == goal)
+                .ok_or(RouteError::NoRoute)?;
+
+        // Reconstruct undirected edge ids and the canonical distance by
+        // walking consecutive node pairs. `distance_km` is summed from
+        // `undirected_weights` (the canonical f32, widened) rather than
+        // from the scaled integer cost, to avoid drift.
+        let weights = g.undirected_weights.as_slice();
+        let mut edge_ids: Vec<EdgeId> = Vec::with_capacity(path.len().saturating_sub(1));
+        let mut distance_km = 0.0_f64;
+        for pair in path.windows(2) {
+            let (a, b) = (pair[0], pair[1]);
+            let lo = offsets[a as usize].to_native() as usize;
+            let hi = offsets[a as usize + 1].to_native() as usize;
+            // The min-weight unblocked a→b half-edge is the one Dijkstra
+            // relaxed across for this hop.
+            let chosen = edges[lo..hi]
+                .iter()
+                .filter(|e| e.target.to_native() == b && !blocked.contains(&e.edge_id.to_native()))
+                .min_by(|x, y| x.weight_km.to_native().total_cmp(&y.weight_km.to_native()))
+                .expect("a Dijkstra path hop always has an unblocked forward edge");
+            let id = chosen.edge_id.to_native();
+            distance_km += f64::from(weights[id as usize].to_native());
+            edge_ids.push(id);
+        }
+
+        let coordinates = path.iter().map(|&n| node_latlng(n)).collect();
+        Ok(Route {
+            coordinates,
+            distance_km,
+            edge_ids,
+        })
+    }
+
+    /// Collect the union of undirected edge ids for the named edge
+    /// groups (the 13 baked-in chokepoints/passages).
+    ///
+    /// # Errors
+    ///
+    /// [`RouteError::UnknownGroup`] if any name does not match a baked-in
+    /// group.
+    pub fn edges_for_groups<'a>(
+        &self,
+        names: impl IntoIterator<Item = &'a str>,
+    ) -> Result<HashSet<EdgeId>, RouteError> {
+        let groups = self.archived().groups.as_slice();
+        let mut out = HashSet::new();
+        for name in names {
+            let entry = groups
+                .iter()
+                .find(|g| g.name.as_str() == name)
+                .ok_or_else(|| RouteError::UnknownGroup(name.to_string()))?;
+            out.extend(entry.edge_ids.iter().map(|id| id.to_native()));
+        }
+        Ok(out)
     }
 }
 

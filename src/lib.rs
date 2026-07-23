@@ -12,9 +12,12 @@
 //! - [`Graph::load`] mmaps the graph from disk on native targets,
 //!   falling back to the static slice when no path source resolves.
 //!
-//! Routing algorithms (Dijkstra, distance matrices) follow in later
-//! tickets. See `README.md` and `NOTICE` for project status and
-//! upstream attribution.
+//! Once a [`Graph`] is loaded, [`Graph::route`] runs a Dijkstra
+//! shortest path with a caller-supplied set of blocked undirected
+//! edges (see [`Graph::edges_for_groups`] to resolve the 13 named
+//! chokepoint/passage groups into an [`EdgeId`] set). Distance matrices
+//! and further algorithms follow in later tickets. See `README.md` and
+//! `NOTICE` for project status and upstream attribution.
 
 #![deny(unsafe_code)]
 
@@ -22,6 +25,6 @@ pub mod data;
 pub mod graph;
 mod loader;
 
-pub use crate::loader::{Graph, LoadError};
+pub use crate::loader::{EdgeId, Graph, LoadError, NodeId, Route, RouteError};
 
 include!(concat!(env!("OUT_DIR"), "/edge_groups.rs"));
