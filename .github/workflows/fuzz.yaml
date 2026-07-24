@@ -1,0 +1,44 @@
+name: "fuzz"
+
+# ENG-4691: cargo-fuzz quick-pass. Feeds arbitrary bytes to
+# Graph::from_bytes (the load_archive target) for 60s per PR so malformed
+# archives can't panic, OOM, or segfault. The deep, continuous variant runs
+# on OSS-Fuzz (see oss-fuzz/). Mirrors ci.yaml's conventions; the sole
+# deviation is the toolchain: cargo-fuzz needs a nightly sanitizer toolchain,
+# so this is the one job in the repo that is not stable-only.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  load-archive:
+    name: fuzz load_archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+          shared-key: fuzz
+      # Compile BOTH targets so a break in route_inputs is caught even
+      # though only load_archive is run in the quick-pass.
+      - run: cargo fuzz build
+      # 60s libFuzzer run seeded from fuzz/corpus/load_archive/.
+      - run: cargo fuzz run load_archive -- -max_total_time=60
