@@ -132,3 +132,93 @@ fn root_metadata_excludes_fuzz_package() {
         "root `cargo metadata` must NOT list the fuzz package as a workspace member"
     );
 }
+
+// ---- OSS-Fuzz staging files (deliverables for the external submission) ----
+//
+// The PR to google/oss-fuzz is a human follow-up (public repo + approval
+// cycle), so these lock the *repo-side* deliverables: the project files must
+// stay structurally valid and in sync with the fuzz crate, so the eventual
+// submission does not fail an OSS-Fuzz `check_build`.
+
+#[test]
+fn oss_fuzz_project_yaml_has_required_keys() {
+    let y = read("oss-fuzz/projects/rustyroute/project.yaml");
+    for key in [
+        "language: rust",
+        "primary_contact:",
+        "main_repo:",
+        "fuzzing_engines:",
+        "sanitizers:",
+    ] {
+        assert!(y.contains(key), "project.yaml must contain `{key}`");
+    }
+    assert!(y.contains("libfuzzer"), "libfuzzer engine required");
+    assert!(y.contains("address"), "address sanitizer required");
+}
+
+#[test]
+fn oss_fuzz_dockerfile_uses_rust_base_builder() {
+    let d = read("oss-fuzz/projects/rustyroute/Dockerfile");
+    assert!(
+        d.contains("FROM gcr.io/oss-fuzz-base/base-builder-rust"),
+        "Dockerfile must build on the OSS-Fuzz Rust base image"
+    );
+    assert!(
+        d.contains("COPY build.sh"),
+        "Dockerfile must stage build.sh"
+    );
+}
+
+#[test]
+fn oss_fuzz_build_sh_builds_all_targets_and_seeds() {
+    let b = read("oss-fuzz/projects/rustyroute/build.sh");
+    assert!(
+        b.starts_with("#!/bin/bash"),
+        "build.sh needs a bash shebang"
+    );
+    assert!(
+        b.contains("cargo fuzz build"),
+        "must build the fuzz targets"
+    );
+    // Every declared fuzz target must be handled by build.sh, and vice versa —
+    // guards against renaming a target in Cargo.toml but not the build script.
+    let cargo = read("fuzz/Cargo.toml");
+    for target in ["load_archive", "route_inputs"] {
+        assert!(
+            cargo.contains(&format!("name = \"{target}\"")),
+            "target {target} should be declared in fuzz/Cargo.toml"
+        );
+        assert!(
+            b.contains(target),
+            "build.sh must handle the {target} target"
+        );
+    }
+    // The seed must be delivered via OSS-Fuzz's <target>_seed_corpus.zip
+    // convention; loose files copied into $OUT are ignored by OSS-Fuzz.
+    assert!(
+        b.contains("load_archive_seed_corpus.zip"),
+        "seed must be packaged as load_archive_seed_corpus.zip"
+    );
+}
+
+#[test]
+fn oss_fuzz_build_sh_is_committed_executable() {
+    // OSS-Fuzz invokes build.sh directly, so it must carry the executable bit.
+    // Check git's tracked mode (100755) — platform-independent, unlike the
+    // local filesystem bit which PermissionsExt cannot read on Windows.
+    let out = Command::new("git")
+        .args(["ls-files", "-s", "oss-fuzz/projects/rustyroute/build.sh"])
+        .current_dir(root())
+        .output();
+    let out = match out {
+        Ok(o) if o.status.success() && !o.stdout.is_empty() => o,
+        // Not a git checkout (e.g. a packaged crate tarball) — nothing to
+        // assert against; skip rather than fail.
+        _ => return,
+    };
+    let line = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        line.starts_with("100755"),
+        "build.sh must be committed executable (git mode 100755), got: {line}"
+    );
+}
