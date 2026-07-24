@@ -47,3 +47,7 @@ oss-fuzz/projects/rustyroute/
   per PR. OSS-Fuzz runs the deep, continuous variant of both targets.
 - `build.sh` builds both `load_archive` and `route_inputs`; keep the target
   list in sync with `fuzz/Cargo.toml`.
+- The committed seed is delivered to OSS-Fuzz as
+  `$OUT/load_archive_seed_corpus.zip` — OSS-Fuzz only ingests seed corpora
+  from `<target>_seed_corpus.zip`, not from loose files copied into `$OUT`.
+  `base-builder-rust` provides `zip`.
