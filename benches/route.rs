@@ -30,7 +30,7 @@ fn graph_load_50km(c: &mut Criterion) {
     let mut group = c.benchmark_group("graph_load_50km");
     // Cold: full mmap + magic/version validation + rkyv checked access.
     group.bench_function("cold", |b| {
-        b.iter(|| Graph::load(black_box(50)).expect("load 50km graph"));
+        b.iter(|| black_box(Graph::load(black_box(50)).expect("load 50km graph")));
     });
     // Warm: graph already loaded; measure warm archived() re-access via
     // node_count, which re-runs rkyv checked access on each call.
@@ -51,14 +51,18 @@ fn route_marseille_shanghai_50km(c: &mut Criterion) {
     let mut group = c.benchmark_group("route_marseille_shanghai_50km");
     group.bench_function("open", |b| {
         b.iter(|| {
-            g.route(black_box(MARSEILLE), black_box(SHANGHAI), &empty)
-                .expect("open Marseille->Shanghai route exists")
+            black_box(
+                g.route(black_box(MARSEILLE), black_box(SHANGHAI), &empty)
+                    .expect("open Marseille->Shanghai route exists"),
+            )
         });
     });
     group.bench_function("suez_blocked", |b| {
         b.iter(|| {
-            g.route(black_box(MARSEILLE), black_box(SHANGHAI), &suez)
-                .expect("Suez-blocked Marseille->Shanghai detour exists")
+            black_box(
+                g.route(black_box(MARSEILLE), black_box(SHANGHAI), &suez)
+                    .expect("Suez-blocked Marseille->Shanghai detour exists"),
+            )
         });
     });
     group.finish();
@@ -70,8 +74,10 @@ fn route_singapore_yokohama_5km(c: &mut Criterion) {
     let empty: HashSet<EdgeId> = HashSet::new();
     c.bench_function("route_singapore_yokohama_5km", |b| {
         b.iter(|| {
-            g.route(black_box(SINGAPORE), black_box(YOKOHAMA), &empty)
-                .expect("Singapore->Yokohama route exists")
+            black_box(
+                g.route(black_box(SINGAPORE), black_box(YOKOHAMA), &empty)
+                    .expect("Singapore->Yokohama route exists"),
+            )
         });
     });
 }
@@ -80,8 +86,10 @@ fn edges_for_groups_all_13(c: &mut Criterion) {
     let g = Graph::load(50).expect("load 50km graph");
     c.bench_function("edges_for_groups_all_13", |b| {
         b.iter(|| {
-            g.edges_for_groups(black_box(rustyroute::EDGE_GROUPS).iter().copied())
-                .expect("all 13 groups resolve")
+            black_box(
+                g.edges_for_groups(black_box(rustyroute::EDGE_GROUPS).iter().copied())
+                    .expect("all 13 groups resolve"),
+            )
         });
     });
 }
