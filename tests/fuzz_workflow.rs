@@ -53,10 +53,18 @@ fn fuzz_workflow_builds_both_and_runs_load_archive() {
     let w = read(".github/workflows/fuzz.yaml");
     // Builds all targets (catches a route_inputs compile break).
     assert!(w.contains("cargo fuzz build"), "must build all targets");
-    // Runs the load_archive quick-pass with a time bound.
+    // Runs the load_archive quick-pass with a time bound. (A `--target`
+    // flag may sit between the target name and `--`, so assert the pieces
+    // rather than one contiguous substring.)
     assert!(
-        w.contains("cargo fuzz run load_archive -- -max_total_time="),
+        w.contains("cargo fuzz run load_archive") && w.contains("-max_total_time="),
         "must run load_archive with a max_total_time bound"
+    );
+    // ASan requires the dynamically-linked gnu triple (musl's static libc
+    // breaks the sanitizer on GitHub runners).
+    assert!(
+        w.contains("--target x86_64-unknown-linux-gnu"),
+        "fuzz build/run must pin the gnu target for ASan compatibility"
     );
 }
 
