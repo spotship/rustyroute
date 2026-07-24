@@ -17,6 +17,11 @@ use std::sync::OnceLock;
 use rustyroute::{EdgeId, Graph};
 use serde::Deserialize;
 
+/// Grid resolutions rustyroute ships data for. `graph()` has one cache slot
+/// per entry; `fixtures_parse_and_are_wellformed` rejects any fixture row
+/// declaring a resolution outside this set.
+const SUPPORTED_RESOLUTIONS: [u32; 5] = [5, 10, 20, 50, 100];
+
 #[derive(Debug, Deserialize)]
 struct Fixtures {
     routes: Vec<RouteFixture>,
@@ -140,8 +145,33 @@ fn fixtures_parse_and_are_wellformed() {
     ] {
         assert!(keys.contains(&k), "fixture missing key `{k}`");
     }
-    // Coordinates rounded to 4 decimals (ticket requirement).
+    // Keys must be unique — a duplicate would let one row silently shadow
+    // another (lookups return the first match).
+    let mut seen = HashSet::new();
     for r in &fixtures().routes {
+        assert!(
+            seen.insert(r.key.as_str()),
+            "duplicate fixture key `{}`",
+            r.key
+        );
+    }
+    for r in &fixtures().routes {
+        // Every row must declare at least one resolution, and only supported
+        // ones — otherwise a golden test could pass without routing anything
+        // (empty sweep) or panic in `graph()` (unsupported resolution).
+        assert!(
+            !r.resolutions.is_empty(),
+            "fixture `{}` has an empty `resolutions` list",
+            r.key
+        );
+        for &res in &r.resolutions {
+            assert!(
+                SUPPORTED_RESOLUTIONS.contains(&res),
+                "fixture `{}` declares unsupported resolution {res}km",
+                r.key
+            );
+        }
+        // Coordinates rounded to 4 decimals (ticket requirement).
         for v in [r.from[0], r.from[1], r.to[0], r.to[1]] {
             let scaled = v * 10_000.0;
             assert!(
@@ -215,7 +245,31 @@ fn menai_allowed_baseline() {
 fn menai_blocked_strictly_longer() {
     let open = fixture("menai_allowed");
     let blocked = fixture("menai_blocked");
-    // Same endpoints; only the blocked set differs.
+    // The comparison is only meaningful if both rows describe the SAME route
+    // and differ solely in the blocked set. Guard against a fixture edit that
+    // silently diverges them (endpoints or resolution sweep), which would let
+    // this test compare two different routes and pass/fail for the wrong
+    // reason.
+    assert_eq!(
+        open.from, blocked.from,
+        "menai rows must share the `from` endpoint"
+    );
+    assert_eq!(
+        open.to, blocked.to,
+        "menai rows must share the `to` endpoint"
+    );
+    assert_eq!(
+        open.resolutions, blocked.resolutions,
+        "menai rows must share the resolution sweep"
+    );
+    assert!(
+        open.blocked.is_empty(),
+        "menai_allowed baseline must have no blocked groups"
+    );
+    assert!(
+        !blocked.blocked.is_empty(),
+        "menai_blocked must block at least one group"
+    );
     for &res in &blocked.resolutions {
         let open_km = distance_at(open, res);
         let blocked_km = distance_at(blocked, res);
