@@ -1,0 +1,13 @@
+homepage: "https://github.com/spotship/rustyroute"
+main_repo: "https://github.com/spotship/rustyroute"
+language: rust
+primary_contact: "jimbo@spot-ship.com"
+auto_ccs:
+  - "jimbo@spot-ship.com"
+  # TODO(ENG-4691): add the confirmed co-maintainer email before opening the
+  # google/oss-fuzz PR. OSS-Fuzz requires a second maintainer address that is
+  # associated with the project (see oss-fuzz/README.md).
+fuzzing_engines:
+  - libfuzzer
+sanitizers:
+  - address
