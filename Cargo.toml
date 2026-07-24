@@ -42,3 +42,8 @@ rusqlite = { version = "0.32", default-features = false, features = ["bundled"] 
 # Reuses the bundled SQLite amalgamation already built for [build-dependencies].
 rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
 tempfile = "3"
+# ENG-4681: tests/golden_routes.rs parses tests/fixtures/routes.json (the
+# golden-route table). Dev-only; MIT/Apache-2.0, already covered by
+# deny.toml's licence allowlist — no library or downstream-consumer impact.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
