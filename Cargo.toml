@@ -42,3 +42,12 @@ rusqlite = { version = "0.32", default-features = false, features = ["bundled"] 
 # Reuses the bundled SQLite amalgamation already built for [build-dependencies].
 rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
 tempfile = "3"
+# ENG-4690: CodSpeed's drop-in criterion replacement. Behaves as plain
+# criterion under `cargo bench` (incl. html_reports) and registers benches
+# with the CodSpeed harness under `cargo codspeed`. Re-exports the full
+# criterion 0.5 API, so benches/route.rs is ordinary criterion code.
+codspeed-criterion-compat = { version = "2", features = ["html_reports"] }
+
+[[bench]]
+name = "route"
+harness = false
