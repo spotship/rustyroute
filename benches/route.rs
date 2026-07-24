@@ -33,8 +33,7 @@ fn graph_load_50km(c: &mut Criterion) {
         b.iter(|| Graph::load(black_box(50)).expect("load 50km graph"));
     });
     // Warm: graph already loaded; measure warm archived() re-access via
-    // node_count (archived() re-runs rkyv checked access each call —
-    // src/loader.rs:280-291).
+    // node_count, which re-runs rkyv checked access on each call.
     let g = Graph::load(50).expect("load 50km graph");
     group.bench_function("warm", |b| {
         b.iter(|| black_box(g.node_count()));

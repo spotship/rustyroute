@@ -30,9 +30,11 @@ jobs:
     # Ubuntu 20.04 and 22.04 are supported at the moment".
     runs-on: ubuntu-22.04
     # PRs that intentionally trade perf for clarity put [skip-perf] in the
-    # title and document the regression in CHANGELOG (ENG-4692). On push
-    # to main the pull_request title is empty, so the job always runs.
-    if: ${{ !contains(github.event.pull_request.title, '[skip-perf]') }}
+    # title and document the regression in CHANGELOG (ENG-4692). The
+    # event-type guard scopes [skip-perf] to pull_request events only; on
+    # push to main and workflow_dispatch the job always runs, so the
+    # baseline CodSpeed compares deltas against is never skipped.
+    if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip-perf]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
