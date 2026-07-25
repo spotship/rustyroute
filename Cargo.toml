@@ -19,15 +19,39 @@ data-10km = []
 data-20km = []
 data-50km = []
 data-100km = []
-# `cli` is a forward-declared meta-feature for the future binary
-# (ENG-4xxx). Today it has no dep:clap term because clap is not yet a
-# dependency — it only turns on every data resolution.
-cli = ["data-5km", "data-10km", "data-20km", "data-50km", "data-100km"]
+# `cli` gates the optional `rustyroute` binary (src/bin/rustyroute.rs,
+# ENG-4682). It also turns on every data resolution: `Graph::load`'s
+# OUT_DIR step resolves to a build temp dir that no longer exists after
+# `cargo install`, so an installed binary can only fall back to the
+# static `data::BYTES_{N}KM` slices — it needs all five to honour any
+# `--resolution`.
+cli = [
+    "dep:clap",
+    "data-5km",
+    "data-10km",
+    "data-20km",
+    "data-50km",
+    "data-100km",
+]
+
+# Declared explicitly (rather than relying on src/bin auto-discovery)
+# because only an explicit target can carry `required-features`. That is
+# what makes a plain `cargo build` skip the binary entirely and never
+# compile clap.
+[[bin]]
+name = "rustyroute"
+path = "src/bin/rustyroute.rs"
+required-features = ["cli"]
 
 [dependencies]
 pathfinding = "4"
 rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck"] }
 thiserror = "1"
+# MUST stay on ONE line: tests/changelog.rs:32-43 derives the crate
+# version by returning the first Cargo.toml line that trims to a
+# `version`-prefixed string, so a multi-line inline table here would
+# introduce a second candidate and can misparse the crate version.
+clap = { version = "4", features = ["derive"], optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 memmap2 = "0.9"
