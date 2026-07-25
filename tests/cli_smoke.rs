@@ -286,8 +286,8 @@ fn help_exits_zero() {
 #[test]
 fn cargo_toml_gates_the_bin_and_keeps_clap_on_one_line() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
-    let toml = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let toml =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
 
     assert!(
         toml.contains("[[bin]]"),
