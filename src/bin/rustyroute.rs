@@ -189,13 +189,23 @@ fn main() -> ExitCode {
 }
 
 fn run_route(args: &RouteArgs) -> u8 {
-    // Validate `--block` against the baked-in registry before touching
-    // the multi-megabyte graph, so a typo fails fast and identically
-    // whether or not data for this resolution is compiled in.
-    let unknown: Vec<&str> = args
+    // Drop empty names first. `--block ""` and a trailing comma
+    // (`--block suezCanal,`) both yield an empty entry under
+    // `value_delimiter`; treating those as "nothing to block" is kinder
+    // than reporting an unknown group whose name prints as nothing.
+    let requested: Vec<&str> = args
         .block
         .iter()
         .map(String::as_str)
+        .filter(|name| !name.is_empty())
+        .collect();
+
+    // Validate `--block` against the baked-in registry before touching
+    // the multi-megabyte graph, so a typo fails fast and identically
+    // whether or not data for this resolution is compiled in.
+    let unknown: Vec<&str> = requested
+        .iter()
+        .copied()
         .filter(|name| !EDGE_GROUPS.contains(name))
         .collect();
     if !unknown.is_empty() {
@@ -222,7 +232,7 @@ fn run_route(args: &RouteArgs) -> u8 {
         }
     };
 
-    let blocked = match graph.edges_for_groups(args.block.iter().map(String::as_str)) {
+    let blocked = match graph.edges_for_groups(requested.iter().copied()) {
         Ok(blocked) => blocked,
         Err(err) => {
             // Unreachable: the pre-flight check above already rejected

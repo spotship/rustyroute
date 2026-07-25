@@ -111,6 +111,25 @@ fn known_block_group_is_accepted() {
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
 }
 
+/// An empty `--block` entry means "block nothing", not "unknown group".
+/// `--block ""` and a trailing comma both produce one under
+/// `value_delimiter = ','`; neither should be reported as an unknown
+/// group whose name prints as nothing.
+#[test]
+fn empty_block_entries_are_ignored() {
+    for arg in ["", "suezCanal,"] {
+        let out = run(&[
+            "route", "--from", MARSEILLE, "--to", SHANGHAI, "--block", arg,
+        ]);
+        assert_eq!(
+            code(&out),
+            0,
+            "`--block {arg:?}` should be accepted. stderr: {}",
+            stderr(&out)
+        );
+    }
+}
+
 /// AC6: `--format line` emits one `lng,lat` per line.
 ///
 /// The magnitude assertions are the regression guard for the
@@ -227,15 +246,25 @@ fn malformed_coordinate_exits_1() {
 }
 
 /// Regression guard for `allow_hyphen_values`: without it clap treats a
-/// negative coordinate as a flag and the command fails.
+/// leading `-` as the start of a flag and rejects the argument.
+///
+/// Asserts only that the exit code is NOT 1. Dropping
+/// `allow_hyphen_values` makes clap report an unknown flag, which this
+/// CLI maps to exit 1 — so `!= 1` captures exactly the regression this
+/// test exists for. Asserting exit 0 instead would additionally require
+/// that the graph connects these two ports, which is a property of the
+/// bundled MARNET data rather than of argument parsing; a coarse
+/// resolution or a data refresh could then fail this test for a reason
+/// unrelated to its purpose.
 #[test]
 fn negative_coordinates_are_accepted() {
     // Cape Town -> Buenos Aires: both southern, one western.
     let out = run(&["route", "--from", "-33.92,18.42", "--to", "-34.60,-58.37"]);
-    assert_eq!(
+    assert_ne!(
         code(&out),
-        0,
-        "negative coordinates must parse (allow_hyphen_values). stderr: {}",
+        1,
+        "negative coordinates must parse (allow_hyphen_values); \
+         exit 1 means clap rejected them as flags. stderr: {}",
         stderr(&out)
     );
 }
