@@ -189,14 +189,18 @@ fn main() -> ExitCode {
 }
 
 fn run_route(args: &RouteArgs) -> u8 {
-    // Drop empty names first. `--block ""` and a trailing comma
-    // (`--block suezCanal,`) both yield an empty entry under
-    // `value_delimiter`; treating those as "nothing to block" is kinder
-    // than reporting an unknown group whose name prints as nothing.
+    // Trim each name, then drop the empty ones. Trimming matters
+    // because `--block "suezCanal, menaiStrait"` is natural shell input
+    // and `value_delimiter` splits on the comma alone, leaving a
+    // leading space on every name after the first. Dropping empties
+    // then covers `--block ""`, a trailing comma
+    // (`--block suezCanal,`), and whitespace-only entries — treating
+    // those as "nothing to block" is kinder than reporting an unknown
+    // group whose name prints as nothing.
     let requested: Vec<&str> = args
         .block
         .iter()
-        .map(String::as_str)
+        .map(|name| name.trim())
         .filter(|name| !name.is_empty())
         .collect();
 

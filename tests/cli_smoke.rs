@@ -111,13 +111,23 @@ fn known_block_group_is_accepted() {
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
 }
 
-/// An empty `--block` entry means "block nothing", not "unknown group".
-/// `--block ""` and a trailing comma both produce one under
-/// `value_delimiter = ','`; neither should be reported as an unknown
-/// group whose name prints as nothing.
+/// `--block` entries are trimmed, and empty ones mean "block nothing"
+/// rather than "unknown group".
+///
+/// `value_delimiter = ','` splits on the comma alone, so the natural
+/// shell form `--block "suezCanal, menaiStrait"` leaves a leading space
+/// on every name after the first — without trimming those are rejected
+/// as unknown groups. Empty entries arise from `--block ""`, a trailing
+/// comma, and whitespace-only values.
 #[test]
-fn empty_block_entries_are_ignored() {
-    for arg in ["", "suezCanal,"] {
+fn block_entries_are_trimmed_and_empties_ignored() {
+    for arg in [
+        "",
+        "   ",
+        "suezCanal,",
+        " suezCanal ",
+        "suezCanal, menaiStrait",
+    ] {
         let out = run(&[
             "route", "--from", MARSEILLE, "--to", SHANGHAI, "--block", arg,
         ]);
