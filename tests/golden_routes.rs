@@ -252,9 +252,7 @@ fn fixtures_parse_and_are_wellformed() {
         // fine-grid tolerance to the coarsest grid, altering the 100 km
         // assertion with nothing to flag the change.
         assert!(
-            r.expected_km.is_none()
-                || !r.resolutions.contains(&100)
-                || r.tol_100km.is_some(),
+            r.expected_km.is_none() || !r.resolutions.contains(&100) || r.tol_100km.is_some(),
             "fixture `{}` pins a golden and sweeps 100km, so `tol_100km` must be set",
             r.key
         );
@@ -349,7 +347,8 @@ fn menai_blocked_strictly_longer() {
     // (or swap in a different one) and still satisfy the inequality, quietly
     // changing which restriction this test actually validates.
     assert_eq!(
-        blocked.blocked, ["menaiStrait"],
+        blocked.blocked,
+        ["menaiStrait"],
         "menai_blocked must block exactly {{menaiStrait}}"
     );
     for &res in &blocked.resolutions {
