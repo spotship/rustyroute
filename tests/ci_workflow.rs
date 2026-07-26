@@ -179,11 +179,23 @@ fn features_matrix_has_no_default_features_row() {
     // The `--no-default-features` build is the row that catches
     // "I forgot to #[cfg]-gate this" — the AC3 sentinel. The
     // data-100km row is deferred to ENG-4679 per the spec.
+    //
+    // Asserted on the matrix `flags:` VALUE rather than a bare
+    // file-wide substring: ENG-4688's `wasm` job also passes
+    // `--no-default-features`, so a loose `contains` would stay green
+    // even if this row were deleted — the gate would silently become a
+    // no-op. Same reasoning as `clippy_job_uses_deny_warnings` above.
     assert!(
-        wf.contains("--no-default-features"),
+        wf.contains("flags: \"--no-default-features\""),
         "features-matrix must include a `--no-default-features` row to enforce \
-         AC3 (un-gated use of feature-gated items fails CI)."
+         AC3 (un-gated use of feature-gated items fails CI). The wasm job's own \
+         `--no-default-features` does not count — this must be a matrix row."
     );
+    // This sibling check is deliberately left file-wide. `--all-features`
+    // is also carried by the clippy, test-matrix, coverage and docs jobs
+    // (ci.yaml:47, :67, :109, :127), so it was already weak before
+    // ENG-4688 — that ticket neither caused nor worsened it, so
+    // narrowing it belongs to whoever owns that cleanup.
     assert!(
         wf.contains("--all-features"),
         "features-matrix must include an `--all-features` row to catch gated \
