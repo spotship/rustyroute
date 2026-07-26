@@ -17,15 +17,20 @@ fuzz_target!(|data: &[u8]| {
     // large committed seed driving `-max_len` up — climb toward
     // `-rss_limit_mb` and trip a false-positive OOM crash.
     let ptr = Box::into_raw(data.to_vec().into_boxed_slice());
-    // SAFETY: `ptr` is a freshly created boxed slice we have not freed, so
-    // dereferencing it to a shared slice is valid.
-    let leaked: &'static [u8] = unsafe { &*ptr };
 
-    let _ = rustyroute::Graph::from_bytes(leaked);
+    // Inner scope confines the `&'static [u8]` borrow (and the `Graph` that
+    // holds it) so both are definitely dead before the free below — no shared
+    // reference derived from `ptr` is live across `Box::from_raw`.
+    {
+        // SAFETY: `ptr` is a freshly created boxed slice we have not freed, so
+        // dereferencing it to a shared slice is valid.
+        let leaked: &'static [u8] = unsafe { &*ptr };
+        let _ = rustyroute::Graph::from_bytes(leaked);
+    }
 
     // SAFETY: a `Graph` holds only `GraphBacking::Static(&'static [u8])`
-    // (src/loader.rs:167) — a borrow, not an owner — and the value returned
-    // above was dropped at the end of that statement, so no reference into
-    // `ptr` survives. Reconstructing the `Box` to free it is sound.
+    // (src/loader.rs:167) — a borrow, not an owner — and both it and `leaked`
+    // went out of scope above, so no reference into `ptr` survives.
+    // Reconstructing the `Box` to free it is sound.
     drop(unsafe { Box::from_raw(ptr) });
 });
