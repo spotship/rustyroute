@@ -10,14 +10,18 @@
 //! route uses Anglesey-straddling coordinates instead of Liverpool->Dublin
 //! (§2b).
 //!
-//! The gate is `wasm32`-only, deliberately: unlike `route_smoke.rs` and
-//! `env_data_dir.rs` (which name `data::BYTES_50KM`, a feature-gated
+//! The one and only gate on this file is
+//! `#![cfg(not(target_arch = "wasm32"))]` — i.e. these tests build and run
+//! on every target *except* `wasm32`. That exclusion is required because
+//! `Graph::load` is itself `#[cfg(not(target_arch = "wasm32"))]`.
+//!
+//! There is deliberately no `data-*` feature gate. Unlike `route_smoke.rs`
+//! and `env_data_dir.rs` (which name `data::BYTES_50KM`, a feature-gated
 //! symbol), this binary only calls `Graph::load` — resolution-order step
 //! 2, `$OUT_DIR/data/{N}km.rkyv`, which `build/mod.rs` writes for every
 //! entry in `RESOLUTIONS` regardless of which `data-*` features are on.
 //! So no data feature is required, and the goldens stay available under
-//! partial feature sets. `Graph::load` itself is
-//! `#[cfg(not(target_arch = "wasm32"))]`, which is what the gate tracks.
+//! partial feature sets.
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::collections::HashSet;
