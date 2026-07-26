@@ -258,6 +258,14 @@ fn fixtures_parse_and_are_wellformed() {
                     "fixture `{}` pins a non-zero `expected_km`, so `tol` must be > 0",
                     r.key
                 );
+                // Same reasoning on the 100 km grid, where `tol_for` swaps in
+                // `tol_100km`: a zero or negative value there would make the
+                // coarse-grid assertion unsatisfiable for the same reason.
+                assert!(
+                    !r.resolutions.contains(&100) || r.tol_100km.is_some_and(|t| t > 0.0),
+                    "fixture `{}` sweeps 100km, so `tol_100km` must be > 0",
+                    r.key
+                );
             }
         }
         // `tol_for` reads `tol_100km` at 100 km and `tol` everywhere else. A
