@@ -4,7 +4,7 @@
 //!
 //! Contract: for a valid graph, any `(from, to, blocked)` composition must
 //! only ever return `Ok(Route)` or a typed `RouteError` — never panic. Coords
-//! are validated inside `route` (`src/loader.rs:426`), and blocked ids that do
+//! are validated inside `Graph::route`, and blocked ids that do
 //! not exist simply never filter anything, so arbitrary inputs are safe by
 //! construction; this target proves it empirically.
 

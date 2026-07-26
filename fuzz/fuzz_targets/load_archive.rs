@@ -3,7 +3,7 @@
 //!
 //! Contract: feeding any byte slice to `from_bytes` must only ever return a
 //! typed `LoadError` (or `Ok`) — never panic, OOM, or segfault. `from_bytes`
-//! already guards its header length before slicing (`src/loader.rs:533`) and
+//! already guards its header length before slicing (`validate_header`) and
 //! runs rkyv's *checked* `access`, so this target proves that contract holds
 //! across the whole input space and guards against regressions.
 
@@ -28,9 +28,9 @@ fuzz_target!(|data: &[u8]| {
         let _ = rustyroute::Graph::from_bytes(leaked);
     }
 
-    // SAFETY: a `Graph` holds only `GraphBacking::Static(&'static [u8])`
-    // (src/loader.rs:167) — a borrow, not an owner — and both it and `leaked`
-    // went out of scope above, so no reference into `ptr` survives.
-    // Reconstructing the `Box` to free it is sound.
+    // SAFETY: a `Graph` holds only `GraphBacking::Static(&'static [u8])` — a
+    // borrow, not an owner — and both it and `leaked` went out of scope above,
+    // so no reference into `ptr` survives. Reconstructing the `Box` to free it
+    // is sound.
     drop(unsafe { Box::from_raw(ptr) });
 });
