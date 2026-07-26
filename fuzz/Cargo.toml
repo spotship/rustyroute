@@ -15,7 +15,10 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-arbitrary = { version = "1", features = ["derive"] }
+# No `derive` feature: `RouteInput` implements `Arbitrary` by hand (to bound
+# the blocked-set length), so the derive macro would be dead weight in the
+# fuzz and OSS-Fuzz builds.
+arbitrary = "1"
 
 [dependencies.rustyroute]
 path = ".."
