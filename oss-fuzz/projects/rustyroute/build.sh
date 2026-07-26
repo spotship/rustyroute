@@ -6,10 +6,18 @@
 
 cd "$SRC/rustyroute"
 
-# cargo-fuzz auto-locates the fuzz/ package from the crate root.
-cargo fuzz build -O
+# Pin the target triple rather than relying on cargo-fuzz's default. That
+# default is the *host* triple, which is not reliably gnu — it resolved to musl
+# on GitHub's runners, and ASan (project.yaml `sanitizers: address`) is
+# incompatible with a statically linked libc. See the same pin in
+# .github/workflows/fuzz.yaml. Deriving the output dir from the same variable
+# keeps the build and the copy below from ever disagreeing.
+FUZZ_TARGET_TRIPLE="x86_64-unknown-linux-gnu"
 
-FUZZ_TARGET_OUTPUT_DIR="fuzz/target/x86_64-unknown-linux-gnu/release"
+# cargo-fuzz auto-locates the fuzz/ package from the crate root.
+cargo fuzz build -O --target "$FUZZ_TARGET_TRIPLE"
+
+FUZZ_TARGET_OUTPUT_DIR="fuzz/target/$FUZZ_TARGET_TRIPLE/release"
 for target in load_archive route_inputs; do
   cp "$FUZZ_TARGET_OUTPUT_DIR/$target" "$OUT/"
 done
