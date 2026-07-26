@@ -407,7 +407,8 @@ fn wasm_job_toolchain_installs_wasm32_target() {
     // step dies with "can't find crate for `core`" — and the tempting
     // "fix" for that is to delete the `--target` flag.
     assert!(
-        wf.lines().any(|l| l.trim() == "targets: wasm32-unknown-unknown"),
+        wf.lines()
+            .any(|l| l.trim() == "targets: wasm32-unknown-unknown"),
         "the wasm job's `dtolnay/rust-toolchain@stable` step must pass \
          `targets: wasm32-unknown-unknown` as an actual input (not just a \
          comment) so the cross-compilation target is installed on the runner."
