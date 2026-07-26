@@ -38,8 +38,10 @@ struct Fixtures {
 
 /// One golden row. `expected_km`/`tol`/`tol_100km` are `Option` because the
 /// Menai baseline+blocked pair assert an inequality, not an absolute, and
-/// carry `null`. Documentation-only JSON fields (`name`, `real_world_km`,
-/// `source`) are ignored by serde and deliberately not modelled here.
+/// carry `null`. Serde cannot express "all set or all null", so
+/// `fixtures_parse_and_are_wellformed` enforces that pairing instead.
+/// Documentation-only JSON fields (`name`, `real_world_km`, `source`) are
+/// ignored by serde and deliberately not modelled here.
 #[derive(Debug, Deserialize)]
 struct RouteFixture {
     key: String,
@@ -188,6 +190,54 @@ fn fixtures_parse_and_are_wellformed() {
                 "coord {v} in `{}` not rounded to 4 decimals",
                 r.key
             );
+        }
+        // Distance-schema invariants. The two row classes are disjoint: a
+        // *pinned* row carries `expected_km` and is asserted absolutely by
+        // `assert_golden`; an *inequality-only* row carries all three
+        // distance fields as null and is only ever compared against a
+        // sibling. A half-populated row would surface as a panic deep in
+        // `tol_for`/`within` inside some unrelated test, naming neither the
+        // fixture nor the missing field — so reject it here, where the
+        // message can point straight at the offending row.
+        // `expected_km` and `tol` are what make a row *pinned*; neither is
+        // meaningful alone, so they must appear together or not at all.
+        assert!(
+            r.expected_km.is_some() == r.tol.is_some(),
+            "fixture `{}`: `expected_km` and `tol` must be set together",
+            r.key
+        );
+        // An inequality-only row carries no distance fields at all — a
+        // stray `tol_100km` would be dead config that reads as a golden.
+        assert!(
+            r.expected_km.is_some() || r.tol_100km.is_none(),
+            "fixture `{}` has no `expected_km`, so `tol_100km` must be null",
+            r.key
+        );
+        if let Some(expected) = r.expected_km {
+            assert!(
+                expected.is_finite() && expected >= 0.0,
+                "fixture `{}` has a non-finite or negative `expected_km` {expected}",
+                r.key
+            );
+            if expected == 0.0 {
+                // `within` divides by `expected`, so a zero golden can only
+                // be asserted exactly (see `hamburg_self_is_zero`) — and
+                // zero km is only meaningful when both endpoints are
+                // literally the same point.
+                assert!(
+                    r.from == r.to,
+                    "fixture `{}` pins `expected_km` 0 but its endpoints differ",
+                    r.key
+                );
+            } else {
+                // `within` compares with a strict `<`, so a zero tolerance
+                // on a non-zero golden could never pass.
+                assert!(
+                    r.tol.is_some_and(|t| t > 0.0),
+                    "fixture `{}` pins a non-zero `expected_km`, so `tol` must be > 0",
+                    r.key
+                );
+            }
         }
     }
 }
