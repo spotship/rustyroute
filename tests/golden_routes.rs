@@ -9,7 +9,16 @@
 //! the ticket's estimated km were recalibrated (§2a) and why the Menai
 //! route uses Anglesey-straddling coordinates instead of Liverpool->Dublin
 //! (§2b).
-#![cfg(all(feature = "data-50km", not(target_arch = "wasm32")))]
+//!
+//! The gate is `wasm32`-only, deliberately: unlike `route_smoke.rs` and
+//! `env_data_dir.rs` (which name `data::BYTES_50KM`, a feature-gated
+//! symbol), this binary only calls `Graph::load` — resolution-order step
+//! 2, `$OUT_DIR/data/{N}km.rkyv`, which `build/mod.rs` writes for every
+//! entry in `RESOLUTIONS` regardless of which `data-*` features are on.
+//! So no data feature is required, and the goldens stay available under
+//! partial feature sets. `Graph::load` itself is
+//! `#[cfg(not(target_arch = "wasm32"))]`, which is what the gate tracks.
+#![cfg(not(target_arch = "wasm32"))]
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -68,8 +77,8 @@ fn fixture(key: &str) -> &'static RouteFixture {
 
 /// Load (and cache) the graph for a resolution. `Graph::load(n)` reads
 /// `$OUT_DIR/data/{n}km.rkyv`, which `build.rs` writes for every
-/// resolution, so every n in {5,10,20,50,100} resolves under default
-/// features.
+/// resolution, so every n in {5,10,20,50,100} resolves under any feature
+/// set — including `--no-default-features`.
 fn graph(res: u32) -> &'static Graph {
     static G5: OnceLock<Graph> = OnceLock::new();
     static G10: OnceLock<Graph> = OnceLock::new();
