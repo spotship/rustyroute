@@ -207,10 +207,11 @@ fn features_matrix_has_no_default_features_row() {
          `--no-default-features` does not count — this must be a matrix row."
     );
     // This sibling check is deliberately left file-wide. `--all-features`
-    // is also carried by the clippy, test-matrix, coverage and docs jobs
-    // (ci.yaml:47, :67, :109, :127), so it was already weak before
-    // ENG-4688 — that ticket neither caused nor worsened it, so
-    // narrowing it belongs to whoever owns that cleanup.
+    // is also carried by the clippy, test-matrix, coverage and docs jobs,
+    // so it was already weak before ENG-4688 — that ticket neither caused
+    // nor worsened it, so narrowing it belongs to whoever owns that
+    // cleanup. (Job names, not line numbers: inserting the `wasm` job
+    // shifted every number that used to be cited here.)
     assert!(
         wf.contains("--all-features"),
         "features-matrix must include an `--all-features` row to catch gated \
