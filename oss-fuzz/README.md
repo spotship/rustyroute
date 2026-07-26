@@ -18,16 +18,17 @@ oss-fuzz/projects/rustyroute/
 - `github.com/spotship/rustyroute` must be **public** (OSS-Fuzz only fuzzes
   public projects). The Dockerfile clones over HTTPS.
 - OSS-Fuzz requires **two maintainer email addresses** associated with the
-  project. `project.yaml` `auto_ccs` currently lists only
-  `jimbo@spot-ship.com`, followed by a `TODO(ENG-4691)` comment marking where
-  the second (co-maintainer) address goes. That second entry **must be added
-  before opening the PR**.
+  project. Satisfied: `project.yaml` `auto_ccs` lists `jimbo@spot-ship.com`
+  and `jimbo@freedman.io`.
 
 ## Submission steps
 
-1. Confirm the co-maintainer email, then add it as a second `auto_ccs` entry in
-   `project.yaml` and delete the `TODO(ENG-4691)` comment above it.
-2. Verify the repo is public.
+Steps 1–2 are already done; the submission itself (steps 3–6) is a deliberate
+human follow-up and has **not** been started.
+
+1. ~~Confirm the co-maintainer email and add it to `auto_ccs`.~~ Done — both
+   maintainer addresses are in `project.yaml`.
+2. ~~Verify the repo is public.~~ Done — `spotship/rustyroute` is public.
 3. Fork `google/oss-fuzz`. Copy this `projects/rustyroute/` directory to
    `projects/rustyroute/` in the fork (drop the `oss-fuzz/` prefix — in
    google/oss-fuzz the path is `projects/rustyroute/`).
