@@ -136,11 +136,25 @@ fn tol_for(row: &RouteFixture, res: u32) -> f64 {
 }
 
 /// Assert a distance-pinned golden at every resolution it declares.
+///
+/// A zero-km golden is asserted exactly rather than by relative error:
+/// `within` divides by `expected`, so at zero it evaluates `0.0 / 0.0` =
+/// `NaN`, and every `NaN` comparison is false — the row would fail with a
+/// tolerance message that never mentions the real problem.
+/// `fixtures_parse_and_are_wellformed` guarantees a zero golden has
+/// identical endpoints, so exact `0.0` is the correct expectation.
 fn assert_golden(key: &str) {
     let row = fixture(key);
     let expected = row.expected_km.expect("expected_km for a pinned golden");
     for &res in &row.resolutions {
         let dist = distance_at(row, res);
+        if expected == 0.0 {
+            assert_eq!(
+                dist, 0.0,
+                "golden {key} @ {res}km: pinned at 0 km, got {dist}"
+            );
+            continue;
+        }
         let tol = tol_for(row, res);
         assert!(
             within(dist, expected, tol),
@@ -287,16 +301,13 @@ fn singapore_yokohama() {
 }
 
 /// Hamburg -> Hamburg self-route at 50 km. `from == to` snaps to one node
-/// and returns exactly 0.0 (src/loader.rs:443-449). The relative-error
-/// form would divide by zero, so assert exact equality here.
+/// and returns exactly 0.0 (src/loader.rs:443-449). The relative-error form
+/// would divide by zero, so `assert_golden` asserts a zero-pinned row
+/// exactly; going through it here keeps that branch covered instead of
+/// leaving it as untested defensive code.
 #[test]
 fn hamburg_self_is_zero() {
-    let row = fixture("hamburg_self");
-    let dist = distance_at(row, 50);
-    assert_eq!(
-        dist, 0.0,
-        "hamburg self-route must be exactly 0.0, got {dist}"
-    );
+    assert_golden("hamburg_self");
 }
 
 /// Menai baseline (open) — Conwy Bay -> Cardigan Bay round Anglesey. Pins
