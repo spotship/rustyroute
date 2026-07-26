@@ -123,7 +123,10 @@ fn within(dist: f64, expected: f64, tol: f64) -> bool {
 }
 
 /// Tolerance for a row at a given resolution: `tol_100km` at 100 km,
-/// else `tol`.
+/// else `tol`. `fixtures_parse_and_are_wellformed` requires every pinned row
+/// that sweeps 100 km to declare `tol_100km`, so for a well-formed fixture
+/// the `.or(tol)` fallback below is unreachable; it remains only so a
+/// malformed row fails loudly here instead of unwrapping `None`.
 fn tol_for(row: &RouteFixture, res: u32) -> f64 {
     if res == 100 {
         row.tol_100km.or(row.tol).expect("tol_100km or tol")
@@ -243,6 +246,18 @@ fn fixtures_parse_and_are_wellformed() {
                 );
             }
         }
+        // `tol_for` reads `tol_100km` at 100 km and `tol` everywhere else. A
+        // pinned row that sweeps 100 km must therefore declare `tol_100km`:
+        // without it the `.or(tol)` fallback would quietly apply the
+        // fine-grid tolerance to the coarsest grid, altering the 100 km
+        // assertion with nothing to flag the change.
+        assert!(
+            r.expected_km.is_none()
+                || !r.resolutions.contains(&100)
+                || r.tol_100km.is_some(),
+            "fixture `{}` pins a golden and sweeps 100km, so `tol_100km` must be set",
+            r.key
+        );
     }
 }
 
@@ -329,9 +344,13 @@ fn menai_blocked_strictly_longer() {
         open.blocked.is_empty(),
         "menai_allowed baseline must have no blocked groups"
     );
-    assert!(
-        !blocked.blocked.is_empty(),
-        "menai_blocked must block at least one group"
+    // The ticket acceptance is specifically `route(blocked={menaiStrait})`.
+    // Asserting mere non-emptiness would let a fixture edit add another group
+    // (or swap in a different one) and still satisfy the inequality, quietly
+    // changing which restriction this test actually validates.
+    assert_eq!(
+        blocked.blocked, ["menaiStrait"],
+        "menai_blocked must block exactly {{menaiStrait}}"
     );
     for &res in &blocked.resolutions {
         let open_km = distance_at(open, res);
