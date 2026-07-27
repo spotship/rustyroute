@@ -42,8 +42,11 @@ struct Fixtures {
 
 /// One golden row. `expected_km`/`tol`/`tol_100km` are `Option` because the
 /// Menai baseline+blocked pair assert an inequality, not an absolute, and
-/// carry `null`. Serde cannot express "all set or all null", so `validate`
-/// enforces that pairing instead.
+/// carry `null`. The resulting schema is conditional rather than
+/// all-or-nothing: `expected_km` and `tol` are set together or both null,
+/// while `tol_100km` is required only on a pinned row whose sweep includes
+/// 100 km, must be null on an inequality-only row, and is optional
+/// otherwise. Serde cannot express that, so `validate` enforces it instead.
 /// Documentation-only JSON fields (`name`, `real_world_km`, `source`) are
 /// ignored by serde and deliberately not modelled here.
 #[derive(Debug, Deserialize)]
