@@ -20,19 +20,29 @@ use axum::{Json, Router};
 use rustyroute::{EdgeId, Graph, RouteError};
 use serde_json::json;
 
+/// Which pre-baked grid to serve. Used for both the load and the
+/// reported `resolution`, so the two cannot disagree. (Don't reach for
+/// `Graph::resolution_km()` here: it returns 0 for a handle built with
+/// `Graph::from_bytes`, which is exactly the substitution suggested
+/// below.)
+const RESOLUTION_KM: u32 = 50;
+
 /// Load the graph once and leak it for the process lifetime — the
 /// long-lived-handle pattern documented on `rustyroute::Graph`. `Graph`
 /// is `Send + Sync` but not `Clone`, so a handler shared across tokio
 /// worker threads needs `&'static Graph` (or an `Arc`).
 ///
-/// `Graph::load(50)` needs no setup on default features: it falls back
+/// `Graph::load` needs no setup on default features: it falls back
 /// to the `data-50km` slice baked into the binary. Without a filesystem
 /// (wasm, scratch containers) use that slice directly instead —
 /// `Graph::from_bytes(rustyroute::data::BYTES_50KM)` — which requires
 /// the `data-50km` feature to be enabled.
 fn graph() -> &'static Graph {
     static G: OnceLock<&'static Graph> = OnceLock::new();
-    G.get_or_init(|| Box::leak(Box::new(Graph::load(50).expect("load 50km graph"))))
+    G.get_or_init(|| {
+        let g = Graph::load(RESOLUTION_KM).expect("load the graph");
+        Box::leak(Box::new(g))
+    })
 }
 
 /// `?fromLatLng=43.30,5.37&toLatLng=31.23,121.47&block=suezCanal`
@@ -91,7 +101,7 @@ async fn route(Query(q): Query<RouteQuery>) -> Response {
                     "geometry": { "type": "LineString", "coordinates": coordinates },
                     "properties": {
                         "distance_km": r.distance_km,
-                        "resolution": graph.resolution_km(),
+                        "resolution": RESOLUTION_KM,
                     },
                 }],
             }))

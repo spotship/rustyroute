@@ -42,6 +42,83 @@ fn fenced_block(md: &str, info: &str) -> Option<String> {
     None
 }
 
+/// The edge-group table as `(group, source)` pairs, in document order.
+/// Located by its header row rather than a line number.
+fn edge_group_rows(readme: &str) -> Vec<(String, String)> {
+    let header = "| Group | Source |";
+    let start = readme
+        .find(header)
+        .unwrap_or_else(|| panic!("README.md must contain an edge-group table headed `{header}`"));
+    readme[start..]
+        .lines()
+        .skip(2) // header row + `|---|---|` separator
+        .take_while(|l| l.starts_with('|'))
+        .map(|l| {
+            let mut cells = l.split('|').skip(1);
+            let group = cells
+                .next()
+                .unwrap_or_else(|| panic!("malformed table row: {l:?}"))
+                .trim();
+            let source = cells
+                .next()
+                .unwrap_or_else(|| panic!("table row missing a Source cell: {l:?}"))
+                .trim();
+            (group.trim_matches('`').to_string(), source.to_string())
+        })
+        .collect()
+}
+
+/// Every fence's info string, in document order.
+fn fence_info_strings(md: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut open = false;
+    for line in md.lines() {
+        let Some(info) = line.trim_end().strip_prefix("```") else {
+            continue;
+        };
+        if open {
+            open = false; // this is a closing fence
+        } else {
+            open = true;
+            out.push(info.to_string());
+        }
+    }
+    out
+}
+
+/// AC2's real guard. `lib_rs_compiles_readme_as_doctests` only proves
+/// the anchor is present — it says nothing about whether the fence it
+/// points at is still *live*.
+///
+/// Retagging the library quickstart ```` ```rust,ignore ```` is the
+/// first forbidden shortcut the spec names, and it is completely
+/// silent: the quickstart stops being compiled and run, every other
+/// test in this file still passes, and CI stays green. Verified by
+/// doing it — `cargo test --doc` went from `1 passed; 1 ignored` to
+/// `0 passed; 2 ignored` with all six sibling tests green.
+///
+/// So pin the policy directly: exactly two `rust`-family fences, in
+/// this order, with these exact info strings. `no_run` on the axum
+/// fence is required (it binds a port); anything weaker than a bare
+/// `rust` on the quickstart means AC2 is not actually being enforced.
+#[test]
+fn readme_rust_fences_are_exactly_the_two_expected() {
+    let readme = read("README.md");
+    let rust_fences: Vec<String> = fence_info_strings(&readme)
+        .into_iter()
+        .filter(|i| i == "rust" || i.starts_with("rust,") || i.starts_with("rust "))
+        .collect();
+    assert_eq!(
+        rust_fences,
+        vec!["rust".to_string(), "rust,no_run".to_string()],
+        "README.md must carry exactly two Rust fences: the library quickstart as a \
+         bare ```rust (compiled AND run by `cargo test --doc` — that is AC2), then \
+         the axum example as ```rust,no_run (compiled only; it binds a port). \
+         Adding `ignore`/`compile_fail`, adding a third Rust fence, or reordering \
+         them all silently weaken the doctest gate."
+    );
+}
+
 /// AC4. Ordered whole-vector equality, deliberately: `EDGE_GROUPS` is
 /// documented as a *stable order* matching `Graph::groups[i]`
 /// (build/registry.rs:18-21), so a reordered table is a real defect and
@@ -168,13 +245,21 @@ fn readme_edge_group_table_pass_tags_match_pass_groups() {
         "expected 12 PASS_GROUPS entries, parsed {pairs:?}"
     );
 
+    // Row-by-row, not a whole-file `contains` sweep: a bare `contains`
+    // finds every tag *somewhere* and so would pass happily if two rows
+    // had their Source cells swapped — and the column-1 test above only
+    // reads group names, so nothing else would catch it either.
+    let rows = edge_group_rows(&readme);
     for (tag, public) in pairs {
-        let row_claim = format!("`pass` tag `{tag}`");
-        let alt_claim = format!("upstream `pass` tag `{tag}`");
+        let source = rows
+            .iter()
+            .find(|(group, _)| *group == public)
+            .map(|(_, source)| source.as_str())
+            .unwrap_or_else(|| panic!("README.md has no edge-group row for `{public}`"));
         assert!(
-            readme.contains(&row_claim) || readme.contains(&alt_claim),
+            source.contains(&format!("`{tag}`")),
             "README.md's `{public}` row must credit upstream `pass` tag `{tag}` \
-             (build/groups.rs PASS_GROUPS)"
+             (build/groups.rs PASS_GROUPS), but its Source cell reads: {source:?}"
         );
     }
 }

@@ -26,8 +26,9 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::OnceLock;
 
 /// Owns the spawned server so it is killed even if a test panics.
 struct Server {
@@ -68,13 +69,23 @@ impl Drop for Server {
 /// `tests/feature_matrix.rs` and `tests/downstream_consumer_smoke.rs`
 /// use their own target dirs.
 fn example_binary() -> PathBuf {
+    // Memoised: all four tests call this, and on the rebuild path each
+    // would otherwise spawn its own `cargo build` against the same
+    // --target-dir. Cargo's file lock makes the losers block rather
+    // than corrupt anything, so it is wasted wall-clock — but
+    // tests/feature_matrix.rs:36-41 already settled this shape with a
+    // mutex, and memoising fixes the redundant work too.
+    static BIN: OnceLock<PathBuf> = OnceLock::new();
+    BIN.get_or_init(build_or_locate_example).clone()
+}
+
+fn build_or_locate_example() -> PathBuf {
     let name = if cfg!(windows) {
         "axum_server.exe"
     } else {
         "axum_server"
     };
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source = manifest.join("examples").join("axum_server.rs");
 
     // current_exe is target/<profile>/deps/<test>-<hash>; the examples
     // directory is its sibling one level up.
@@ -84,7 +95,7 @@ fn example_binary() -> PathBuf {
         dir.pop();
     }
     let candidate = dir.join("examples").join(name);
-    if is_fresh(&candidate, &source) {
+    if is_fresh(&candidate, &manifest) {
         return candidate;
     }
 
@@ -114,35 +125,76 @@ fn example_binary() -> PathBuf {
     built
 }
 
-/// `true` when `bin` exists and is at least as new as `source`.
-fn is_fresh(bin: &PathBuf, source: &PathBuf) -> bool {
-    let modified = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    match (modified(bin), modified(source)) {
-        (Some(b), Some(s)) => b >= s,
-        // If either timestamp is unavailable, rebuild rather than guess.
-        _ => false,
+/// `true` when `bin` exists and is at least as new as every input that
+/// can change its behaviour.
+///
+/// Not just `examples/axum_server.rs`: the example links the library, so
+/// editing `src/loader.rs` — say, changing the `start == goal`
+/// self-route branch — and then running the filtered test would
+/// otherwise exercise a binary built before the change and report a
+/// pass for code that no longer exists.
+fn is_fresh(bin: &Path, manifest: &Path) -> bool {
+    let Ok(bin_time) = std::fs::metadata(bin).and_then(|m| m.modified()) else {
+        return false; // missing, or no timestamp — rebuild rather than guess
+    };
+
+    let mut newest = None;
+    let mut stack = vec![manifest.join("src"), manifest.join("examples")];
+    let mut files = vec![manifest.join("Cargo.toml")];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            return false; // cannot enumerate an input — rebuild
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                files.push(path);
+            }
+        }
     }
+    for f in files {
+        match std::fs::metadata(&f).and_then(|m| m.modified()) {
+            Ok(t) => newest = Some(newest.map_or(t, |n: std::time::SystemTime| n.max(t))),
+            Err(_) => return false,
+        }
+    }
+
+    newest.is_some_and(|n| bin_time >= n)
 }
 
 /// Boot the example on an OS-assigned port and wait until it reports
 /// the port it bound. No sleep-and-hope: the readiness signal is the
 /// server's own stdout line.
 fn start_server() -> Server {
-    let mut child = Command::new(example_binary())
+    let child = Command::new(example_binary())
         .env("PORT", "0")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        // Inherited, not piped: an undrained pipe blocks the child once
+        // it fills, and it is the only unbounded-blocking surface here.
+        // Inheriting also puts a child panic in the test output, where
+        // it is actionable — capturing stderr and never showing it is
+        // what made the first failure of this file hard to diagnose.
+        .stderr(Stdio::inherit())
         .spawn()
         .expect("spawn axum_server example");
 
-    let stdout = child.stdout.take().expect("piped stdout");
+    // Build the guard BEFORE anything that can panic. `Child` does not
+    // kill on drop, so a panic in the readiness read or the port parse
+    // would otherwise orphan a live server — holding its port and its
+    // mmap of $OUT_DIR/data/50km.rkyv, which on Windows breaks later
+    // cargo steps with `os error 5`.
+    let mut server = Server { child, port: 0 };
+
+    let stdout = server.child.stdout.take().expect("piped stdout");
     let mut line = String::new();
     BufReader::new(stdout)
         .read_line(&mut line)
         .expect("read the server's listening line");
 
     // "listening on http://0.0.0.0:34567"
-    let port: u16 = line
+    server.port = line
         .rsplit(':')
         .next()
         .unwrap_or_default()
@@ -150,7 +202,7 @@ fn start_server() -> Server {
         .parse()
         .unwrap_or_else(|e| panic!("could not parse a port out of {line:?}: {e}"));
 
-    Server { child, port }
+    server
 }
 
 /// Minimal HTTP/1.1 GET. Returns `(status_code, body)`.
