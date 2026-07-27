@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are authored against `codspeed-criterion-compat` (a drop-in criterion
   replacement: plain criterion under `cargo bench`, instrumented under
   `cargo codspeed`). `[skip-perf]` in a PR title bypasses the perf job.
+  Uploads authenticate to CodSpeed over OpenID Connect (`id-token: write`)
+  via the org's CodSpeed GitHub App — no `CODSPEED_TOKEN` secret required.
 - Automated release pipeline (ENG-4692): `release-plz` opens a
   `chore: release vX.Y.Z` PR from conventional commits and, on merge,
   publishes to crates.io and creates the GitHub release/tag;

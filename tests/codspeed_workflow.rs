@@ -2,9 +2,9 @@
 //! `.github/workflows/codspeed.yaml` introduced by ENG-4690.
 //!
 //! CodSpeed's actual measurement + PR-comment behaviour can only be
-//! verified on GitHub Actions with a live CODSPEED_TOKEN. What IS in
+//! verified on GitHub Actions against the org's CodSpeed app. What IS in
 //! scope here is the small set of string-level invariants whose silent
-//! regression would neuter the perf gate: the triggers, the token
+//! regression would neuter the perf gate: the triggers, the OIDC auth
 //! wiring, the CodSpeed action pin, the cargo-codspeed build/run steps,
 //! and the [skip-perf] escape hatch. String assertions match the
 //! convention in tests/ci_workflow.rs and tests/audit_workflow.rs.
@@ -43,22 +43,32 @@ fn codspeed_workflow_triggers_pr_and_push_main() {
 }
 
 #[test]
-fn codspeed_workflow_uses_codspeed_action_v2() {
+fn codspeed_workflow_uses_codspeed_action_v4() {
     let wf = read_workflow();
     assert!(
-        wf.contains("CodSpeedHQ/action@v2"),
-        "codspeed.yaml must pin CodSpeedHQ/action@v2 (floating major)."
+        wf.contains("CodSpeedHQ/action@v4"),
+        "codspeed.yaml must pin CodSpeedHQ/action@v4 (floating major) — v4 \
+         is the first major with OpenID Connect upload auth."
     );
 }
 
 #[test]
-fn codspeed_workflow_passes_codspeed_token() {
+fn codspeed_workflow_authenticates_via_oidc() {
     let wf = read_workflow();
     assert!(
-        wf.contains("secrets.CODSPEED_TOKEN"),
-        "codspeed.yaml must pass `token: ${{ secrets.CODSPEED_TOKEN }}` — \
-         without it the CodSpeed upload is unauthenticated and no PR \
-         comment is posted."
+        wf.contains("id-token: write"),
+        "codspeed.yaml must grant `id-token: write` — CodSpeed uploads \
+         authenticate via OpenID Connect against the org's CodSpeed GitHub \
+         App. Without it the upload fails 401 and no PR comment is posted."
+    );
+    // Matches the wiring (`token: ${{ secrets.CODSPEED_TOKEN }}`), not the
+    // bare name — the workflow header cites CODSPEED_TOKEN when explaining
+    // why the v2 revision 401'd, and that prose should stay allowed.
+    assert!(
+        !wf.contains("secrets.CODSPEED_TOKEN"),
+        "codspeed.yaml must NOT wire in a CODSPEED_TOKEN secret — no such \
+         secret is provisioned, and passing an empty one makes the upload \
+         fail 401 'Repository not found'. OIDC replaces it."
     );
 }
 
