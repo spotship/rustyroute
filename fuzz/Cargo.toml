@@ -1,0 +1,40 @@
+[package]
+name = "rustyroute-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Empty table => fuzz/ is its OWN workspace root, so it is never absorbed
+# into a parent [workspace] even if one is later added to the root
+# Cargo.toml. The root crate is single-crate today (no [workspace]), so the
+# fuzz package is already excluded; this future-proofs that guarantee.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+# No `derive` feature: `RouteInput` implements `Arbitrary` by hand (to bound
+# the blocked-set length), so the derive macro would be dead weight in the
+# fuzz and OSS-Fuzz builds.
+arbitrary = "1"
+
+[dependencies.rustyroute]
+path = ".."
+# Default features (=> data-50km) expose rustyroute::data::BYTES_50KM for the
+# route_inputs fixed graph.
+
+[[bin]]
+name = "load_archive"
+path = "fuzz_targets/load_archive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "route_inputs"
+path = "fuzz_targets/route_inputs.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,10 @@
+/target/
+/artifacts/
+/coverage/
+# Fuzz crate lockfile — mirrors the repo's no-lockfile stance for library and
+# sub-package crates (see root .gitignore); OSS-Fuzz rebuilds from scratch.
+/Cargo.lock
+# libFuzzer-discovered corpus entries are regenerable noise; commit only the
+# named seed(s) under corpus/<target>/seed_*.
+/corpus/*/*
+!/corpus/*/seed_*

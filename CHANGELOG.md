@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Continuous fuzzing (ENG-4691): a self-contained `fuzz/` cargo-fuzz
+  package (its own workspace root, excluded from the root build) with two
+  libFuzzer targets — `load_archive` (arbitrary bytes → `Graph::from_bytes`)
+  and `route_inputs` (fuzzed `from`/`to`/blocked composition against a fixed
+  graph) — plus a committed valid seed. A `fuzz` CI workflow runs a 60s
+  `load_archive` quick-pass per PR on nightly, and `oss-fuzz/` stages the
+  Google OSS-Fuzz project files (Dockerfile, build.sh, project.yaml) with a
+  submission runbook for CNCF-grade continuous fuzzing.
 - Automated release pipeline (ENG-4692): `release-plz` opens a
   `chore: release vX.Y.Z` PR from conventional commits and, on merge,
   publishes to crates.io and creates the GitHub release/tag;

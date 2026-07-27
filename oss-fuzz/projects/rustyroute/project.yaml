@@ -1,0 +1,11 @@
+homepage: "https://github.com/spotship/rustyroute"
+main_repo: "https://github.com/spotship/rustyroute"
+language: rust
+primary_contact: "jimbo@spot-ship.com"
+auto_ccs:
+  - "jimbo@spot-ship.com"
+  - "jimbo@freedman.io"
+fuzzing_engines:
+  - libfuzzer
+sanitizers:
+  - address
