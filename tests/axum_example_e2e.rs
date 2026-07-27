@@ -138,14 +138,30 @@ fn is_fresh(bin: &Path, manifest: &Path) -> bool {
         return false; // missing, or no timestamp — rebuild rather than guess
     };
 
+    // Every input that feeds the binary, not just its own source.
+    // `build.rs` + `build/**` compile `vendor/**`'s GeoPackages into the
+    // graph archives the example serves, and `build/groups.rs`
+    // additionally generates `EDGE_GROUPS`, which the `block=` path
+    // depends on. Omitting them leaves the original staleness hole open:
+    // editing `PASS_GROUPS` reruns `build.rs` for the lib and the test
+    // target but does NOT rebuild examples, so a filtered run would
+    // assert against a binary whose graph still has the old groups.
     let mut newest = None;
-    let mut stack = vec![manifest.join("src"), manifest.join("examples")];
-    let mut files = vec![manifest.join("Cargo.toml")];
+    let mut stack = vec![
+        manifest.join("src"),
+        manifest.join("examples"),
+        manifest.join("build"),
+        manifest.join("vendor"),
+    ];
+    let mut files = vec![manifest.join("Cargo.toml"), manifest.join("build.rs")];
     while let Some(dir) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             return false; // cannot enumerate an input — rebuild
         };
-        for entry in entries.flatten() {
+        for entry in entries {
+            // Consistent with the branch above: an unreadable entry
+            // means we cannot prove freshness, so rebuild.
+            let Ok(entry) = entry else { return false };
             let path = entry.path();
             if path.is_dir() {
                 stack.push(path);

@@ -1,13 +1,22 @@
 //! ENG-4683: pin `README.md` to the code it documents.
 //!
-//! The README makes five claims that can silently rot, plus one
-//! meta-claim about its own machinery:
+//! The README makes five claims that can silently rot, plus two
+//! meta-claims about its own machinery:
 //!   AC4: the 13 edge groups it tables -> `readme_edge_group_table_matches_edge_groups_exactly`
 //!   AC4: the `pass` tags it credits   -> `readme_edge_group_table_pass_tags_match_pass_groups`
 //!   AC5: the axum block it shows      -> `readme_axum_fence_matches_example_file`
 //!   AC6: the menaiStrait bbox         -> `readme_documents_menai_bbox`
 //!   AC8: the section inventory        -> `readme_sections_appear_in_ticket_order`
-//!   AC2: the doctest anchor itself    -> `lib_rs_compiles_readme_as_doctests`
+//!   AC2: the fences are still live    -> `readme_rust_fences_are_exactly_the_two_expected`
+//!   AC2: the doctest anchor exists    -> `lib_rs_compiles_readme_as_doctests`
+//!
+//! Note which of the two AC2 tests is load-bearing.
+//! `lib_rs_compiles_readme_as_doctests` only proves the
+//! `#[cfg(doctest)]` anchor is present; it says nothing about whether
+//! the fences it points at are still compiled. Retagging the quickstart
+//! ```` ```rust,ignore ```` passes that test while silently disabling
+//! AC2 entirely. `readme_rust_fences_are_exactly_the_two_expected` is
+//! the gate that actually catches it — do not weaken or delete it.
 //!
 //! `build/groups.rs` is a build-only module and is not linked into this
 //! test crate, so the bbox check asserts against its source text — the
@@ -256,8 +265,12 @@ fn readme_edge_group_table_pass_tags_match_pass_groups() {
             .find(|(group, _)| *group == public)
             .map(|(_, source)| source.as_str())
             .unwrap_or_else(|| panic!("README.md has no edge-group row for `{public}`"));
+        // The full phrase, not just the backticked tag: these twelve
+        // groups are `pass`-tag derived and `menaiStrait` is the only
+        // bbox one, so a cell reading "bbox around `suez`" would be a
+        // real misattribution that a bare tag match would wave through.
         assert!(
-            source.contains(&format!("`{tag}`")),
+            source.contains(&format!("`pass` tag `{tag}`")),
             "README.md's `{public}` row must credit upstream `pass` tag `{tag}` \
              (build/groups.rs PASS_GROUPS), but its Source cell reads: {source:?}"
         );
