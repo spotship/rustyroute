@@ -1,0 +1,163 @@
+//! ENG-4683: pin `README.md` to the code it documents.
+//!
+//! The README makes four claims that can silently rot, plus one
+//! meta-claim about its own machinery:
+//!   AC4: the 13 edge groups it tables -> `readme_edge_group_table_matches_edge_groups_exactly`
+//!   AC5: the axum block it shows      -> `readme_axum_fence_matches_example_file`
+//!   AC6: the menaiStrait bbox         -> `readme_documents_menai_bbox`
+//!   AC8: the section inventory        -> `readme_sections_appear_in_ticket_order`
+//!   AC2: the doctest anchor itself    -> `lib_rs_compiles_readme_as_doctests`
+//!
+//! `build/groups.rs` is a build-only module and is not linked into this
+//! test crate, so the bbox check asserts against its source text — the
+//! same technique `tests/data_module.rs:26-50` and `tests/lint_state.rs`
+//! use for build-time invariants with no runtime observable.
+
+use std::path::PathBuf;
+
+fn read(rel: &str) -> String {
+    let p: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel);
+    let s = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
+    // CI runs windows-latest (.github/workflows/ci.yaml:55) and the repo
+    // has no .gitattributes, so a checkout there may be CRLF. Every
+    // comparison in this file is byte-exact, so normalise on read.
+    s.replace("\r\n", "\n")
+}
+
+/// Body of the first fenced block opened with exactly ```` ```{info} ````.
+/// The info-string match is exact, so `rust` does not match `rust,no_run`.
+fn fenced_block(md: &str, info: &str) -> Option<String> {
+    let open = format!("```{info}");
+    let mut lines = md.lines();
+    lines.by_ref().find(|l| l.trim_end() == open)?;
+    let mut body = String::new();
+    for line in lines {
+        if line.trim_end() == "```" {
+            return Some(body);
+        }
+        body.push_str(line);
+        body.push('\n');
+    }
+    None
+}
+
+/// AC4. Ordered whole-vector equality, deliberately: `EDGE_GROUPS` is
+/// documented as a *stable order* matching `Graph::groups[i]`
+/// (build/registry.rs:18-21), so a reordered table is a real defect and
+/// a set/`contains` assertion would wave it through.
+#[test]
+fn readme_edge_group_table_matches_edge_groups_exactly() {
+    let readme = read("README.md");
+    let header = "| Group | Source |";
+    let start = readme
+        .find(header)
+        .unwrap_or_else(|| panic!("README.md must contain an edge-group table headed `{header}`"));
+
+    let names: Vec<String> = readme[start..]
+        .lines()
+        .skip(2) // header row + `|---|---|` separator
+        .take_while(|l| l.starts_with('|'))
+        .map(|l| {
+            let cell = l
+                .split('|')
+                .nth(1)
+                .unwrap_or_else(|| panic!("malformed table row: {l:?}"))
+                .trim();
+            cell.trim_matches('`').to_string()
+        })
+        .collect();
+
+    let expected: Vec<String> = rustyroute::EDGE_GROUPS
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect();
+    assert_eq!(
+        names, expected,
+        "README.md's edge-group table must match `rustyroute::EDGE_GROUPS` \
+         exactly and in order. Regenerate from the constant (build/groups.rs \
+         PASS_GROUPS + MENAI_NAME) rather than editing the README by hand."
+    );
+    assert_eq!(names.len(), 13, "there are exactly 13 edge groups");
+}
+
+/// AC5. The example is the source of truth; the README copy is what OSS
+/// readers actually paste. They must be byte-identical.
+#[test]
+fn readme_axum_fence_matches_example_file() {
+    let readme = read("README.md");
+    let example = read("examples/axum_server.rs");
+    let fence = fenced_block(&readme, "rust,no_run")
+        .expect("README.md must contain a ```rust,no_run fence holding the axum example");
+    assert_eq!(
+        fence, example,
+        "the README's ```rust,no_run fence has drifted from \
+         examples/axum_server.rs. Re-sync it from the file — see the \
+         splice snippet in the ENG-4683 plan, Task 4 Step 2."
+    );
+}
+
+/// AC6. Those four numbers are the only reason group 13 exists.
+#[test]
+fn readme_documents_menai_bbox() {
+    let readme = read("README.md");
+    let groups_rs = read("build/groups.rs");
+    for (konst, literal) in [
+        ("MENAI_LNG_MIN", "-4.20"),
+        ("MENAI_LNG_MAX", "-4.00"),
+        ("MENAI_LAT_MIN", "53.13"),
+        ("MENAI_LAT_MAX", "53.30"),
+    ] {
+        assert!(
+            groups_rs.contains(&format!("{konst}: f64 = {literal};")),
+            "build/groups.rs no longer defines `{konst} = {literal}` — the README \
+             bbox and this test must both be updated to the new value"
+        );
+        assert!(
+            readme.contains(literal),
+            "README.md must quote the menaiStrait bbox bound {literal} \
+             (from build/groups.rs `{konst}`)"
+        );
+    }
+}
+
+/// AC8. The ticket fixes both the set of sections and their order.
+/// Asserted as a whole vector so an inserted, renamed, dropped, or
+/// reordered heading all fail loudly.
+#[test]
+fn readme_sections_appear_in_ticket_order() {
+    let readme = read("README.md");
+    let headings: Vec<&str> = readme
+        .lines()
+        .filter(|l| l.starts_with("# ") || l.starts_with("## "))
+        .collect();
+    let expected = [
+        "# rustyroute",
+        "## Quickstart (library)",
+        "## Quickstart (HTTP server with axum)",
+        "## CLI",
+        "## How the data is built",
+        "## Data and features",
+        "## Edge groups",
+        "## Performance",
+        "## License and attribution",
+        "## Contributing",
+        "## Security",
+    ];
+    assert_eq!(
+        headings, expected,
+        "README.md's sections must match the ENG-4683 inventory, in order"
+    );
+}
+
+/// Guard the guard: without the anchor, `cargo test --doc` compiles
+/// none of the README's fences and AC2 silently lapses.
+#[test]
+fn lib_rs_compiles_readme_as_doctests() {
+    let lib = read("src/lib.rs");
+    assert!(
+        lib.contains("#[cfg(doctest)]") && lib.contains("include_str!(\"../README.md\")"),
+        "src/lib.rs must keep the `#[cfg(doctest)] #[doc = include_str!(\"../README.md\")]` \
+         anchor — without it `cargo test --doc` compiles none of the README's fences \
+         and the quickstarts can rot (ENG-4683 AC2)."
+    );
+}
