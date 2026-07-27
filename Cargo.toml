@@ -36,7 +36,12 @@ memmap2 = "0.9"
 rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck", "std"] }
 rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
 
+[[bench]]
+name = "routing"
+harness = false
+
 [dev-dependencies]
+divan = { version = "5.0.1", package = "codspeed-divan-compat" }
 # Used by tests/tampered_gpkg_panic.rs to exercise the full build pipeline
 # (real gpkg_io reader -> csr -> groups) against a tampered .gpkg copy.
 # Reuses the bundled SQLite amalgamation already built for [build-dependencies].

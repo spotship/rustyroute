@@ -2,6 +2,7 @@
 
 [![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.93.0-orange.svg)](Cargo.toml)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/spotship/rustyroute?utm_source=badge)
 
 A Rust library for shortest-path maritime route computation.
 

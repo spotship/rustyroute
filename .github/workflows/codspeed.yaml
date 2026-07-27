@@ -1,0 +1,51 @@
+name: "codspeed"
+
+# Continuous performance benchmarking with CodSpeed. Runs the divan
+# benchmarks in benches/routing.rs under CodSpeed's CPU simulation
+# instrument on every PR and push to main, plus manual dispatch (which
+# also lets CodSpeed backfill baseline data). Mirrors ci.yaml's
+# lowercase-name + .yaml-extension conventions. Authenticates to
+# CodSpeed via OpenID Connect (id-token: write) — no token secret
+# needed.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Separate group name from ci's `ci-${{ github.ref }}` so an in-flight
+# ci run on the same ref does NOT cancel codspeed (and vice versa).
+concurrency:
+  group: codspeed-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Required for OpenID Connect authentication with CodSpeed.
+  id-token: write
+
+jobs:
+  benchmarks:
+    name: Run benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup rust toolchain, cache and cargo-codspeed binary
+        uses: moonrepo/setup-rust@v0
+        with:
+          # MSRV is 1.93.0 (Cargo.toml [package].rust-version); stable
+          # satisfies it.
+          channel: stable
+          cache-target: release
+          bins: cargo-codspeed
+
+      - name: Build the benchmark target(s)
+        run: cargo codspeed build --bench routing
+
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v4
+        with:
+          mode: simulation
+          run: cargo codspeed run
