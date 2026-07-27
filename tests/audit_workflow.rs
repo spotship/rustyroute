@@ -67,6 +67,44 @@ fn read_deny_toml() -> String {
     fs::read_to_string(&p).unwrap_or_else(|e| panic!("failed to read {}: {e}", p.display()))
 }
 
+/// True when `wf` pins `action` to `version` in either of the two forms
+/// this repo accepts:
+///
+///   - a floating tag — `owner/action@v2`
+///   - a digest pin annotated with that tag — `owner/action@<40-hex> # v2`
+///
+/// Both are version contracts; the digest form is the stricter of the two.
+/// `renovate.json` extends `helpers:pinGitHubActionDigests`, so Renovate
+/// rewrites every tag into the digest form and carries the tag over into a
+/// trailing comment. Asserting only the bare tag would make the repo's own
+/// supply-chain policy fail its own tests (ENG-4706 / PR #17).
+///
+/// Still rejected, because they drop the version contract entirely: a
+/// branch ref (`@main`, `@master`), a digest with no version comment, and
+/// a digest whose comment names a *different* version.
+fn pins_action_at(wf: &str, action: &str, version: &str) -> bool {
+    let needle = format!("{action}@");
+    wf.lines().any(|line| {
+        let Some((_, rest)) = line.split_once(&needle) else {
+            return false;
+        };
+        // Split the git ref from any trailing `# comment`.
+        let (git_ref, comment) = match rest.split_once('#') {
+            Some((r, c)) => (r.trim(), Some(c.trim())),
+            None => (rest.trim(), None),
+        };
+        // Floating tag: the ref itself IS the version. Exact match, so
+        // `v0.5` is not satisfied by a `v0.51` tag.
+        if git_ref == version {
+            return true;
+        }
+        // Digest pin: the version moves into the comment Renovate writes.
+        git_ref.len() == 40
+            && git_ref.chars().all(|c| c.is_ascii_hexdigit())
+            && comment == Some(version)
+    })
+}
+
 // ---------------------------------------------------------------------------
 // audit.yaml — triggers, schedule, permissions, concurrency
 // ---------------------------------------------------------------------------
@@ -169,13 +207,14 @@ fn audit_workflow_has_separate_concurrency_group() {
 #[test]
 fn audit_workflow_uses_cargo_deny_action_v2() {
     let wf = read_workflow();
-    // Tag pinning matters: @v2 floats over v2.x.x; @main would let
-    // upstream silently change behaviour. Lock the floating major.
+    // Version pinning matters: @main would let upstream silently change
+    // behaviour. Lock v2 — either as the floating major tag or as a
+    // digest pinned to it (see `pins_action_at`).
     assert!(
-        wf.contains("EmbarkStudios/cargo-deny-action@v2"),
-        "audit.yaml must pin EmbarkStudios/cargo-deny-action@v2 \
-         (floating major). A different tag breaks the ticket's \
-         action-version contract."
+        pins_action_at(&wf, "EmbarkStudios/cargo-deny-action", "v2"),
+        "audit.yaml must pin EmbarkStudios/cargo-deny-action to v2 — as \
+         `@v2` or as `@<sha> # v2`. A different tag, a branch ref, or an \
+         unannotated digest breaks the ticket's action-version contract."
     );
 }
 
@@ -183,8 +222,9 @@ fn audit_workflow_uses_cargo_deny_action_v2() {
 fn audit_workflow_uses_audit_check_v2() {
     let wf = read_workflow();
     assert!(
-        wf.contains("rustsec/audit-check@v2"),
-        "audit.yaml must pin rustsec/audit-check@v2 (floating major)."
+        pins_action_at(&wf, "rustsec/audit-check", "v2"),
+        "audit.yaml must pin rustsec/audit-check to v2 — as `@v2` or as \
+         `@<sha> # v2`."
     );
 }
 

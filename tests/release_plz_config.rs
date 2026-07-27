@@ -50,6 +50,34 @@ fn read_workflow() -> String {
     read(".github/workflows/release-plz.yaml")
 }
 
+/// True when `wf` pins `action` to `version`, accepting both the floating
+/// tag (`owner/action@v0.5`) and the digest form Renovate rewrites it into
+/// (`owner/action@<40-hex> # v0.5`) — `renovate.json` extends
+/// `helpers:pinGitHubActionDigests`. Branch refs, bare digests, and
+/// digests annotated with a different version are still rejected.
+///
+/// Deliberately duplicated from `tests/audit_workflow.rs` (which carries
+/// the long rationale): each workflow test file in this repo is
+/// self-contained and keeps its own copy of its small string helpers.
+fn pins_action_at(wf: &str, action: &str, version: &str) -> bool {
+    let needle = format!("{action}@");
+    wf.lines().any(|line| {
+        let Some((_, rest)) = line.split_once(&needle) else {
+            return false;
+        };
+        let (git_ref, comment) = match rest.split_once('#') {
+            Some((r, c)) => (r.trim(), Some(c.trim())),
+            None => (rest.trim(), None),
+        };
+        if git_ref == version {
+            return true;
+        }
+        git_ref.len() == 40
+            && git_ref.chars().all(|c| c.is_ascii_hexdigit())
+            && comment == Some(version)
+    })
+}
+
 // --- release-plz.toml ---
 
 #[test]
@@ -137,8 +165,9 @@ fn release_plz_workflow_triggers_only_on_push_to_main() {
 fn release_plz_workflow_uses_action_v0_5() {
     let wf = read_workflow();
     assert!(
-        wf.contains("MarcoIeni/release-plz-action@v0.5"),
-        "release-plz.yaml must pin MarcoIeni/release-plz-action@v0.5."
+        pins_action_at(&wf, "MarcoIeni/release-plz-action", "v0.5"),
+        "release-plz.yaml must pin MarcoIeni/release-plz-action to v0.5 — \
+         as `@v0.5` or as `@<sha> # v0.5`."
     );
 }
 
