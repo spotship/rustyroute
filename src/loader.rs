@@ -449,11 +449,15 @@ impl Graph {
     /// ```
     #[must_use]
     pub fn node_count(&self) -> u32 {
-        // A node id is `u32` by the on-disk schema ([`NodeId`], and
-        // `DirectedEdge::source` / `DirectedEdge::target` in
-        // `src/graph.rs`), so a graph can never carry more nodes than
-        // `u32::MAX` -- an unaddressable node could not be referenced by
-        // any edge. Enforced at build time in `build/csr.rs`.
+        // A node id is `u32` by the on-disk schema -- [`NodeId`],
+        // `DirectedEdge::target` and `GraphData::edge_endpoints:
+        // Vec<(u32, u32)>` in `src/graph.rs` -- so a node past
+        // `u32::MAX` would be unreferenceable by any edge and could not
+        // participate in a route. The bound is structural, not asserted:
+        // `build/csr.rs`'s node interner mints ids with `nodes.len() as
+        // u32`, so an oversized table would wrap rather than fail. In
+        // practice the finest grid (5 km) tops out around 10^4 nodes,
+        // six orders of magnitude below the cast's limit.
         #[allow(clippy::cast_possible_truncation)]
         {
             self.archived().nodes.len() as u32

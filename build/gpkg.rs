@@ -1,8 +1,9 @@
 //! Raw edge data extracted from one row of a vendored `.gpkg`.
 //!
 //! `RawEdge` is plain data and is re-included via `#[path]` by tests
-//! that exercise the build pipeline (`tests/group_assignment.rs`,
-//! `tests/tampered_gpkg_panic.rs`). The `GeoPackage` `SQLite` reader
+//! that exercise the build pipeline (`tests/graph_load.rs`,
+//! `tests/group_assignment.rs`, `tests/tampered_gpkg_panic.rs`). The
+//! `GeoPackage` `SQLite` reader
 //! (`iter_edges`) lives in `build/gpkg_io.rs`; `rusqlite` is declared
 //! under both `[build-dependencies]` and `[dev-dependencies]` so the
 //! end-to-end tampered-gpkg test can re-include `gpkg_io.rs` and drive

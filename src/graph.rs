@@ -55,7 +55,14 @@
 /// Magic prefix written to every `.rkyv` file before the rkyv payload.
 pub const MAGIC: &[u8; 4] = b"RRG1";
 
-/// On-disk schema version. Bump on incompatible layout changes.
+/// On-disk schema version.
+///
+/// Bump on incompatible layout changes, and also on any change to a
+/// contract *value* that consumers match on — see [`GroupEntry::name`].
+/// A value rename leaves the archive byte-compatible, so nothing would
+/// reject a stale file; bumping makes it fail fast in the header check
+/// instead of surfacing later as a confusing `UnknownGroup` from
+/// [`crate::Graph::edges_for_groups`].
 pub const SCHEMA_VERSION: u32 = 1;
 
 /// Lon/lat coordinates of one graph node.

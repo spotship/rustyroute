@@ -1,8 +1,9 @@
 //! `GeoPackage` `SQLite` reader. Depends on `rusqlite`, declared under
 //! both `[build-dependencies]` (for `build.rs`) and `[dev-dependencies]`
-//! (so `tests/tampered_gpkg_panic.rs` can re-include this module via
-//! `#[path]` and drive the real reader against a tampered `.gpkg`
-//! copy). This file is never compiled into the library crate.
+//! (so `tests/graph_load.rs` and `tests/tampered_gpkg_panic.rs` can
+//! re-include this module via `#[path]` — the latter drives the real
+//! reader against a tampered `.gpkg` copy). This file is never compiled
+//! into the library crate.
 
 // ENG-4684: see `build/csr.rs` for why this is a module-level inner
 // attribute rather than a crate-root allow -- this file is re-included
