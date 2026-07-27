@@ -73,7 +73,14 @@ async fn route(Query(q): Query<RouteQuery>) -> Response {
     let graph = graph();
     let blocked: HashSet<EdgeId> = match q.block.as_deref().filter(|s| !s.is_empty()) {
         None => HashSet::new(),
-        Some(names) => match graph.edges_for_groups(names.split(',').map(str::trim)) {
+        // Trim, then drop empties, so `block=suezCanal,` and
+        // `block=a,%20,b` mean what the caller obviously intended. The
+        // CLI does the same (src/bin/rustyroute.rs) — without it a
+        // trailing comma reports `unknown edge group: ` with a blank
+        // name, which tells the caller nothing.
+        Some(names) => match graph
+            .edges_for_groups(names.split(',').map(str::trim).filter(|n| !n.is_empty()))
+        {
             Ok(ids) => ids,
             Err(e) => return bad_request(&e.to_string()),
         },

@@ -13,6 +13,7 @@
 //!   AC1 valid GeoJSON     -> `self_route_still_emits_a_valid_linestring`
 //!   blocked-edge plumbing -> `blocking_suez_lengthens_the_route`
 //!   error contract        -> `bad_input_is_rejected_with_400`
+//!   blank `block=` entries -> `blank_block_entries_are_ignored_not_rejected`
 //!
 //! Deliberately no HTTP client dependency: a hand-written GET over
 //! `TcpStream` keeps this test free of reqwest/hyper and of any version
@@ -391,4 +392,36 @@ fn bad_input_is_rejected_with_400() {
         body.contains("notAGroup"),
         "the error should name the unknown group, got: {body}"
     );
+}
+
+/// A trailing comma or a blank entry in `block=` is natural input, and
+/// the CLI deliberately treats it as "nothing extra to block" rather
+/// than reporting `unknown edge group: ` with a blank name
+/// (`src/bin/rustyroute.rs`, `run_route`). The HTTP surface must agree —
+/// found in QA, where `block=suezCanal,` returned exactly that unhelpful
+/// 400.
+#[test]
+fn blank_block_entries_are_ignored_not_rejected() {
+    let server = start_server();
+    let base = "/route?fromLatLng=43.30,5.37&toLatLng=31.23,121.47";
+
+    let (plain, plain_body) = get(server.port, &format!("{base}&block=suezCanal"));
+    assert_eq!(plain, 200, "body was: {plain_body}");
+
+    for suffix in [
+        "&block=suezCanal,",
+        "&block=,suezCanal",
+        "&block=suezCanal,%20",
+    ] {
+        let (status, body) = get(server.port, &format!("{base}{suffix}"));
+        assert_eq!(
+            status, 200,
+            "`{suffix}` must be accepted, not reported as a blank unknown group; got: {body}"
+        );
+        assert_eq!(
+            distance_km(&body),
+            distance_km(&plain_body),
+            "`{suffix}` must route identically to a bare `block=suezCanal`"
+        );
+    }
 }
