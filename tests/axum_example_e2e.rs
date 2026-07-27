@@ -210,7 +210,8 @@ fn start_server() -> Server {
         .read_line(&mut line)
         .expect("read the server's listening line");
 
-    // "listening on http://0.0.0.0:34567"
+    // "listening on http://127.0.0.1:34567" — the example binds loopback
+    // unless HOST is set, and this test does not set it.
     server.port = line
         .rsplit(':')
         .next()
