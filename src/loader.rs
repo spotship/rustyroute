@@ -272,6 +272,12 @@ impl Graph {
     /// *rustyroute's* compile time, so it still points at the archives
     /// `build.rs` baked even when the caller is a separate crate.
     ///
+    /// The example deliberately does *not* clear the variable to make
+    /// itself hermetic: `std::env::remove_var` is `unsafe` in edition
+    /// 2024, and doctests here are required to stay free of `unsafe`.
+    /// Use [`Graph::from_bytes`] instead when you need a loader that no
+    /// environment variable can redirect.
+    ///
     /// ```
     /// # use rustyroute::Graph;
     /// let graph = Graph::load(50)?;

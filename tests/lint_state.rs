@@ -164,27 +164,43 @@ fn lib_rs_has_no_blanket_allow() {
 #[test]
 fn cargo_toml_warns_pedantic_package_wide() {
     let toml = cargo_toml();
-    let squeezed = squeeze_whitespace(&toml);
+
+    // Collect only the lines that actually live inside `[lints.clippy]`,
+    // stopping at the next table header. Scanning the whole file would let
+    // a `pedantic = ...` key in some unrelated table (or a
+    // `[package.metadata]` block) satisfy this test while the real
+    // package-wide gate had been removed or downgraded.
+    let mut in_table = false;
+    let mut table_lines: Vec<&str> = Vec::new();
+    for line in toml.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_table = trimmed == "[lints.clippy]";
+            continue;
+        }
+        if in_table {
+            table_lines.push(trimmed);
+        }
+    }
+
     assert!(
-        squeezed.contains("[lints.clippy]"),
-        "Cargo.toml must declare a `[lints.clippy]` table so the pedantic baseline \
-         applies to every target in the package, not just the library."
+        !table_lines.is_empty(),
+        "Cargo.toml must declare a non-empty `[lints.clippy]` table so the pedantic \
+         baseline applies to every target in the package, not just the library."
     );
-    let start = squeezed
-        .find("[lints.clippy]")
-        .expect("checked immediately above");
-    let table = &squeezed[start..];
-    assert!(
-        table.contains("pedantic"),
-        "Cargo.toml's `[lints.clippy]` table must set `pedantic` — that is the whole \
-         reason the table exists (ENG-4684). Table as read: {table:?}"
-    );
-    // `= "allow"` in either the table or the lib attributes would be a
-    // silent un-gating; only `warn` or `deny` are acceptable levels here.
-    let pedantic_line = toml
-        .lines()
-        .find(|l| l.trim_start().starts_with("pedantic"))
-        .expect("Cargo.toml must carry a `pedantic = ...` entry under [lints.clippy]");
+
+    let pedantic_line = table_lines
+        .iter()
+        .find(|l| l.starts_with("pedantic"))
+        .unwrap_or_else(|| {
+            panic!(
+                "Cargo.toml's `[lints.clippy]` table must set `pedantic` — that is the \
+                 whole reason the table exists (ENG-4684). Table as read: {table_lines:?}"
+            )
+        });
+
+    // `= "allow"` here or in the lib attributes would be a silent
+    // un-gating; only `warn` or `deny` are acceptable levels.
     assert!(
         pedantic_line.contains("\"warn\"") || pedantic_line.contains("\"deny\""),
         "Cargo.toml's `pedantic` lint level must be `warn` or `deny`, not allow/forbid — \
