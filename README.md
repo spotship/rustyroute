@@ -11,8 +11,7 @@ Maritime sea-routing primitives on Eurostat MARNET data, in safe Rust.
 two `(lat, lng)` points and it returns the shortest sea path between
 them, optionally routing around named chokepoints like the Suez Canal or
 the Strait of Malacca. The graph data ships inside the crate, so there
-is nothing to download, no service to call, and no build step of your
-own.
+is nothing to download and no service to call.
 
 > **Status: pre-1.0.** The API can break between minor versions, and
 > `rustyroute` is not yet published to crates.io — the crates.io and
@@ -28,9 +27,16 @@ own.
 cargo add rustyroute
 ```
 
-That is the whole setup. The default features bake the 50 km graph into
-your binary, so the snippet below runs as-is — no environment variable,
-no data directory, no build script.
+(Not on crates.io yet — until the first release, depend on it by git or
+path.)
+
+That is the whole setup on your side. The default features bake the
+50 km graph into your binary, so the snippet below runs as-is — no
+environment variable, no data directory, nothing to configure. Note that
+rustyroute's *own* first build is slow: its `build.rs` compiles a
+bundled SQLite and parses ~17 MiB of GeoPackages into the five graph
+archives. That cost is paid once, at build time; every run afterwards
+just memory-maps the result.
 
 ```rust
 use rustyroute::Graph;
@@ -156,7 +162,10 @@ async fn route(Query(q): Query<RouteQuery>) -> Response {
                 "features": [{
                     "type": "Feature",
                     "geometry": { "type": "LineString", "coordinates": coordinates },
-                    "properties": { "distance_km": r.distance_km, "resolution": 50 },
+                    "properties": {
+                        "distance_km": r.distance_km,
+                        "resolution": graph.resolution_km(),
+                    },
                 }],
             }))
             .into_response()
@@ -385,6 +394,9 @@ Measured on a Linux host with rustc 1.97, release profile:
 | `Graph::from_bytes(BYTES_50KM)` | 2 µs |
 | `route()` — 50 km, Marseille → Shanghai (106 points) | 5.4 ms |
 | `route()` — 5 km, same pair (204 points) | 29 ms |
+
+The `from_bytes` and 50 km rows need `data-50km` (on by default); the
+5 km row needs `data-5km`, which is not.
 
 Loading is effectively free: the archive is mmapped or already resident
 in the binary, and rkyv reads it in place with no deserialisation. The
