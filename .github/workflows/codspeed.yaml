@@ -1,0 +1,61 @@
+name: "codspeed"
+
+# ENG-4690: continuous performance signal. Builds the criterion benches
+# (benches/route.rs) with CodSpeed instrumentation and reports per-PR
+# deltas vs main. The >10% hard-fail threshold for
+# route_marseille_shanghai_50km is configured in the CodSpeed project
+# dashboard (Settings -> performance threshold), not here — the workflow's
+# job is to measure and report on every PR.
+#
+# Auth is OpenID Connect (`id-token: write`), not a token secret: the
+# CodSpeed GitHub App is installed on the org, and action@v4 exchanges the
+# workflow's OIDC token for upload credentials. No CODSPEED_TOKEN secret
+# exists or is needed — an earlier revision of this workflow passed one on
+# action@v2 and failed upload with "401 Unauthorized / Repository not
+# found", because that secret was never provisioned.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: codspeed-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Required for OpenID Connect authentication with CodSpeed.
+  id-token: write
+
+jobs:
+  benchmarks:
+    name: benchmarks
+    # action@v4's simulation instrument has no Ubuntu-version constraint, so
+    # this tracks ubuntu-latest. (The v2 revision of this workflow had to pin
+    # ubuntu-22.04: v2 ran benches under valgrind, which supported only
+    # Ubuntu 20.04 / 22.04.)
+    runs-on: ubuntu-latest
+    # PRs that intentionally trade perf for clarity put [skip-perf] in the
+    # title and document the regression in CHANGELOG (ENG-4692). The
+    # event-type guard scopes [skip-perf] to pull_request events only; on
+    # push to main and workflow_dispatch the job always runs, so the
+    # baseline CodSpeed compares deltas against is never skipped.
+    if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip-perf]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: codspeed
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-codspeed
+      - name: Build instrumented benchmarks
+        run: cargo codspeed build
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v4
+        with:
+          mode: simulation
+          run: cargo codspeed run
