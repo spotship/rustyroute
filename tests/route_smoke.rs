@@ -2,6 +2,14 @@
 //! detour (Suez), edge-group lookup, coordinate validation, and the
 //! all-blocked `NoRoute` path. The heavier golden-route distance table
 //! lives in ENG-4681.
+// ENG-4684: `float_cmp` is allowed because
+// `assert_eq!(route.distance_km, 0.0)` for a self-route is an exact-zero
+// assertion, not an approximate one. `Graph::route` returns a literal
+// `0.0` on the `start == goal` short circuit without summing any edge
+// weights, so there is no accumulated error for a tolerance to absorb --
+// and a tolerance would hide a regression that started returning a small
+// non-zero distance.
+#![allow(clippy::float_cmp)]
 #![cfg(feature = "data-50km")]
 
 use rustyroute::{EdgeId, Graph, RouteError};

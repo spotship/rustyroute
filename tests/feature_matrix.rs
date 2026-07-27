@@ -7,7 +7,7 @@
 //!    consumer with no data baked in" published-crate case.
 //! 3. `--no-default-features --features data-100km` (partial features)
 //!    — exercises AC4's "load(100) succeeds, load(50) is
-//!    DataNotAvailable" matrix.
+//!    `DataNotAvailable`" matrix.
 //!
 //! The dev phase only exercises shape #1 directly. Shapes #2 and #3 are
 //! described in the spec's AC3/AC4 commentary but never actually
@@ -26,7 +26,13 @@
 //! they would otherwise race on the cargo target-dir lock when libtest
 //! runs them in parallel. The `CARGO_LOCK` mutex below serialises the
 //! cargo subprocesses inside this binary.
-
+// ENG-4684: `manual_assert` would have these `if !ok { panic!(...) }`
+// blocks rewritten as `assert!(ok, ...)`. They are deliberately not:
+// each panic body interpolates the full multi-line stdout AND stderr of a
+// `cargo check` subprocess, and `assert!`'s message is only formatted on
+// failure but reads far worse when it spans twenty lines of captured
+// compiler output. The `if` form keeps the diagnostic payload legible.
+#![allow(clippy::manual_assert)]
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::path::PathBuf;
@@ -42,12 +48,15 @@ static CARGO_LOCK: Mutex<()> = Mutex::new(());
 
 fn run_cargo_check(extra_args: &[&str]) -> std::process::Output {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let target_dir = std::env::var("OUT_DIR")
-        .map(|s| PathBuf::from(s).join("feature_matrix_target"))
-        .unwrap_or_else(|_| std::env::temp_dir().join("rustyroute_feature_matrix_target"));
+    let target_dir = std::env::var("OUT_DIR").map_or_else(
+        |_| std::env::temp_dir().join("rustyroute_feature_matrix_target"),
+        |s| PathBuf::from(s).join("feature_matrix_target"),
+    );
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
 
-    let _guard = CARGO_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = CARGO_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut cmd = Command::new(&cargo);
     cmd.arg("check")
         .arg("--manifest-path")

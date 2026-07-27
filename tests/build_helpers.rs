@@ -2,6 +2,13 @@
 //! normal test binary so `cargo test` runs them. The helpers
 //! themselves live under `build/` and are also compiled into
 //! `build.rs`; this file re-includes them via #[path].
+// ENG-4684: the flagged literals are the Menai Strait bbox corner
+// coordinates, quoted at the precision the 5 km grid snaps them to
+// (`5.0062109375`, `52.792460937499996`, ...). Digit separators in a
+// decimal fraction obscure the value rather than clarifying it, and these
+// have to stay byte-comparable against `build/groups.rs`'s bbox
+// constants.
+#![allow(clippy::unreadable_literal)]
 
 #[path = "../build/geometry.rs"]
 mod geometry;

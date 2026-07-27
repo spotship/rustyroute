@@ -22,6 +22,17 @@
 //! entry in `RESOLUTIONS` regardless of which `data-*` features are on.
 //! So no data feature is required, and the goldens stay available under
 //! partial feature sets.
+// ENG-4684: `float_cmp` is allowed at the crate root because exactness is
+// the point of this file. The golden table pins each route's distance to
+// a tolerance carried in `tests/fixtures/routes.json`, and the bare `==`
+// comparisons are precisely the cases where a tolerance would be wrong:
+// a fixture pinned at `expected_km == 0` must be exactly zero (a
+// non-zero-length "self-route" is a bug, not a rounding artefact), and
+// the `from`/`to` endpoint comparisons check that two fixture rows
+// describe the same voyage before their distances are compared against
+// each other. Substituting an epsilon anywhere here would let real drift
+// through -- which is the drift this file exists to catch.
+#![allow(clippy::float_cmp)]
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::collections::HashSet;
