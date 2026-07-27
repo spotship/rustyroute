@@ -19,7 +19,33 @@
 //! and further algorithms follow in later tickets. See `README.md` and
 //! `NOTICE` for project status and upstream attribution.
 
-#![deny(unsafe_code)]
+#![deny(
+    unsafe_code,
+    missing_docs,
+    missing_debug_implementations,
+    rust_2018_idioms,
+    rust_2024_compatibility,
+    rustdoc::broken_intra_doc_links
+)]
+#![warn(clippy::pedantic, clippy::nursery)]
+#![allow(
+    // Every module here is named for the concept it owns (`data`,
+    // `graph`, `loader`), so `graph::GraphData` and `data::DATA_LEN_*KM`
+    // repeat the module name by design — renaming them to satisfy the
+    // lint would make the public API read worse, not better.
+    clippy::module_name_repetitions,
+    // `RouteError` / `LoadError` are `thiserror` enums whose `#[error]`
+    // messages document each failure mode at the variant, and the
+    // fallible public methods (`from_bytes`, `load`, `route`,
+    // `edges_for_groups`) each carry a hand-written `# Errors` section.
+    clippy::missing_errors_doc,
+    // NOT "no public panics" — `Graph::archived` and `Graph::route` both
+    // contain a deliberate `.expect(...)` on an invariant established at
+    // construction. Both document it in a `# Panics` section; this allow
+    // exists so the lint does not also demand one on the infallible
+    // getters that merely call `archived()` internally.
+    clippy::missing_panics_doc
+)]
 
 pub mod data;
 pub mod graph;
