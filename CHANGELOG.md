@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`benches/route.rs`) covering the routing hot path — `Graph::load`,
   `Graph::route` (open + Suez-blocked), the heavy 5km route, and the
   13-group registry lookup — plus a `codspeed.yaml` workflow that reports
-  per-PR performance deltas vs `main` via `CodSpeedHQ/action@v2`. Benches
+  per-PR performance deltas vs `main` via `CodSpeedHQ/action@v4`. Benches
   are authored against `codspeed-criterion-compat` (a drop-in criterion
   replacement: plain criterion under `cargo bench`, instrumented under
   `cargo codspeed`). `[skip-perf]` in a PR title bypasses the perf job.
