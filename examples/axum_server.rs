@@ -89,7 +89,10 @@ async fn route(Query(q): Query<RouteQuery>) -> Response {
                 "features": [{
                     "type": "Feature",
                     "geometry": { "type": "LineString", "coordinates": coordinates },
-                    "properties": { "distance_km": r.distance_km, "resolution": 50 },
+                    "properties": {
+                        "distance_km": r.distance_km,
+                        "resolution": graph.resolution_km(),
+                    },
                 }],
             }))
             .into_response()

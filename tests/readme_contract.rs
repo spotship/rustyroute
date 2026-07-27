@@ -1,8 +1,9 @@
 //! ENG-4683: pin `README.md` to the code it documents.
 //!
-//! The README makes four claims that can silently rot, plus one
+//! The README makes five claims that can silently rot, plus one
 //! meta-claim about its own machinery:
 //!   AC4: the 13 edge groups it tables -> `readme_edge_group_table_matches_edge_groups_exactly`
+//!   AC4: the `pass` tags it credits   -> `readme_edge_group_table_pass_tags_match_pass_groups`
 //!   AC5: the axum block it shows      -> `readme_axum_fence_matches_example_file`
 //!   AC6: the menaiStrait bbox         -> `readme_documents_menai_bbox`
 //!   AC8: the section inventory        -> `readme_sections_appear_in_ticket_order`
@@ -97,25 +98,83 @@ fn readme_axum_fence_matches_example_file() {
 }
 
 /// AC6. Those four numbers are the only reason group 13 exists.
+///
+/// Asserts the whole bbox phrase, not the four literals separately: a
+/// bare `readme.contains("-4.20")` sweep would still pass if the README
+/// swapped the axes (`lat ∈ [-4.20, -4.00], lng ∈ [53.13, 53.30]`),
+/// which is exactly the mistake worth catching — the longitudes and
+/// latitudes here are not interchangeable.
 #[test]
 fn readme_documents_menai_bbox() {
     let readme = read("README.md");
     let groups_rs = read("build/groups.rs");
-    for (konst, literal) in [
+
+    let bounds = [
         ("MENAI_LNG_MIN", "-4.20"),
         ("MENAI_LNG_MAX", "-4.00"),
         ("MENAI_LAT_MIN", "53.13"),
         ("MENAI_LAT_MAX", "53.30"),
-    ] {
+    ];
+    for (konst, literal) in bounds {
         assert!(
             groups_rs.contains(&format!("{konst}: f64 = {literal};")),
             "build/groups.rs no longer defines `{konst} = {literal}` — the README \
              bbox and this test must both be updated to the new value"
         );
+    }
+
+    let [lng_min, lng_max, lat_min, lat_max] = bounds.map(|(_, literal)| literal);
+    let phrase = format!("`lng ∈ [{lng_min}, {lng_max}]`, `lat ∈ [{lat_min}, {lat_max}]`");
+    assert!(
+        readme.contains(&phrase),
+        "README.md must state the menaiStrait bbox as `{phrase}` — with each bound \
+         on its own axis. build/groups.rs:35-38 is the source of truth."
+    );
+}
+
+/// AC4, second column. The group table also claims which upstream
+/// `pass` tag feeds each of the first twelve groups; those claims are
+/// checkable against `build/groups.rs`'s `PASS_GROUPS` and would
+/// otherwise be the one part of the table nothing verifies.
+#[test]
+fn readme_edge_group_table_pass_tags_match_pass_groups() {
+    let readme = read("README.md");
+    let groups_rs = read("build/groups.rs");
+
+    // Parse `("suez", "suezCanal"),` pairs out of the PASS_GROUPS array.
+    let start = groups_rs
+        .find("pub const PASS_GROUPS")
+        .expect("build/groups.rs must define PASS_GROUPS");
+    let body = &groups_rs[start
+        ..start
+            + groups_rs[start..]
+                .find("];")
+                .expect("PASS_GROUPS array must be terminated")];
+    let pairs: Vec<(String, String)> = body
+        .lines()
+        .filter_map(|l| {
+            let l = l.trim();
+            let inner = l.strip_prefix('(')?.split_once("),")?.0;
+            let (tag, public) = inner.split_once(',')?;
+            Some((
+                tag.trim().trim_matches('"').to_string(),
+                public.trim().trim_matches('"').to_string(),
+            ))
+        })
+        .collect();
+    assert_eq!(
+        pairs.len(),
+        12,
+        "expected 12 PASS_GROUPS entries, parsed {pairs:?}"
+    );
+
+    for (tag, public) in pairs {
+        let row_claim = format!("`pass` tag `{tag}`");
+        let alt_claim = format!("upstream `pass` tag `{tag}`");
         assert!(
-            readme.contains(literal),
-            "README.md must quote the menaiStrait bbox bound {literal} \
-             (from build/groups.rs `{konst}`)"
+            readme.contains(&row_claim) || readme.contains(&alt_claim),
+            "README.md's `{public}` row must credit upstream `pass` tag `{tag}` \
+             (build/groups.rs PASS_GROUPS)"
         );
     }
 }
