@@ -63,7 +63,7 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// `f32` precision is ~3 m at 60°N — well below the 5 km grid spacing,
 /// so widening the fields would cost archive size for no positional
 /// gain. Note the **field order is `lng` then `lat`**, matching the
-/// source GeoPackage geometry; the public routing API
+/// source `GeoPackage` geometry; the public routing API
 /// ([`crate::Graph::route`], [`crate::Route::coordinates`]) uses the
 /// opposite `(lat, lng)` order.
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Copy, Debug)]

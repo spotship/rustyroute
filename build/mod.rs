@@ -71,9 +71,15 @@ pub fn run() {
             .len();
         // Each const is referenced only when its matching `data-{N}km`
         // feature is enabled, so the `#[allow(dead_code)]` is required.
+        // `clippy::unreadable_literal` is allowed for the same reason it
+        // cannot be fixed at the call site: these are raw byte counts in
+        // a generated file under `$OUT_DIR` that no human edits, and they
+        // are `include!`d into `src/data.rs`, so the warning is reported
+        // against the library with a span nobody can act on.
         writeln!(
             lens,
-            "#[allow(dead_code)]\npub(crate) const DATA_LEN_{n}KM: usize = {archive_len};",
+            "#[allow(dead_code, clippy::unreadable_literal)]\n\
+             pub(crate) const DATA_LEN_{n}KM: usize = {archive_len};",
         )
         .expect("write to String cannot fail");
     }

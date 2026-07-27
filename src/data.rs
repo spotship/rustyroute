@@ -171,7 +171,16 @@ define_bytes!(
 /// smoke build. wasm consumers use `Graph::from_bytes`, which takes
 /// the byte slice directly and never goes through this helper.
 #[cfg(not(target_arch = "wasm32"))]
-#[allow(unused_variables)] // when no data-* feature is enabled, param is unused
+// When no `data-*` feature is enabled, every match arm below is
+// `cfg`-ed out and the parameter goes unused.
+#[allow(unused_variables)]
+// NOT made `const fn`, even though it could be. `tests/data_module.rs`'s
+// ENG-4688 wasm-gate guard asserts on the literal source text
+// `"pub(crate) fn bytes_for"` and walks the attribute run above it to
+// prove the `#[cfg(not(target_arch = "wasm32"))]` is still attached.
+// Adding `const` renames the signature out from under that guard, which
+// would trade a live regression test for a nursery cosmetic.
+#[allow(clippy::missing_const_for_fn)]
 pub(crate) fn bytes_for(resolution_km: u32) -> Option<&'static [u8]> {
     match resolution_km {
         #[cfg(feature = "data-5km")]

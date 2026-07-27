@@ -223,12 +223,12 @@ impl Graph {
     /// ```
     ///
     /// [`resolution_km`]: Graph::resolution_km
-    pub fn from_bytes(bytes: &'static [u8]) -> Result<Graph, LoadError> {
+    pub fn from_bytes(bytes: &'static [u8]) -> Result<Self, LoadError> {
         validate_header(bytes)?;
         // Checked access — surfaces InvalidArchive on tampering.
         let _ = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(&bytes[8..])
             .map_err(LoadError::InvalidArchive)?;
-        Ok(Graph {
+        Ok(Self {
             backing: GraphBacking::Static(bytes),
             resolution_km: 0,
         })
@@ -290,7 +290,7 @@ impl Graph {
     /// ));
     /// ```
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn load(resolution_km: u32) -> Result<Graph, LoadError> {
+    pub fn load(resolution_km: u32) -> Result<Self, LoadError> {
         const ALLOWED: &[u32] = &[5, 10, 20, 50, 100];
         if !ALLOWED.contains(&resolution_km) {
             return Err(LoadError::UnknownResolution(resolution_km));
@@ -340,7 +340,14 @@ impl Graph {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn load_file(file: std::fs::File, resolution_km: u32) -> Result<Graph, LoadError> {
+    // Taking `File` by value is deliberate ownership transfer, not an
+    // oversight: `memmap2::Mmap::map` only borrows the handle, but the
+    // mapping must outlive it, so `load_file` becomes the sole owner and
+    // drops the descriptor at the end of this frame. Passing `&File`
+    // would let a caller keep the handle alive and mutate the file
+    // underneath a mapping the SAFETY note below assumes is immutable.
+    #[allow(clippy::needless_pass_by_value)]
+    fn load_file(file: std::fs::File, resolution_km: u32) -> Result<Self, LoadError> {
         // SAFETY: memmap2::Mmap::map is unsafe because the kernel can
         // change the underlying file bytes out from under us. We treat
         // the mmap as immutable for the lifetime of the Graph: this
@@ -358,7 +365,7 @@ impl Graph {
         let _ = rkyv::access::<ArchivedGraphData, rkyv::rancor::Error>(&mmap[8..])
             .map_err(LoadError::InvalidArchive)?;
 
-        Ok(Graph {
+        Ok(Self {
             backing: GraphBacking::Mmap(mmap),
             resolution_km,
         })
@@ -379,7 +386,8 @@ impl Graph {
     /// assert_eq!(Graph::from_bytes(data::BYTES_50KM)?.resolution_km(), 0);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn resolution_km(&self) -> u32 {
+    #[must_use]
+    pub const fn resolution_km(&self) -> u32 {
         self.resolution_km
     }
 
@@ -412,6 +420,7 @@ impl Graph {
     /// assert_eq!(archived.groups[0].name.as_str(), "suezCanal");
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn archived(&self) -> &ArchivedGraphData {
         let payload: &[u8] = match &self.backing {
             #[cfg(not(target_arch = "wasm32"))]
@@ -432,8 +441,15 @@ impl Graph {
     /// assert_eq!(Graph::from_bytes(data::BYTES_50KM)?.node_count(), 7_390);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn node_count(&self) -> u32 {
-        self.archived().nodes.len() as u32
+        // A node index is `u32` by the on-disk schema
+        // (`GraphData::node_offsets: Vec<u32>`), so the table can never
+        // hold more entries than `u32::MAX`.
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            self.archived().nodes.len() as u32
+        }
     }
 
     /// Number of undirected edges (distinct
@@ -447,8 +463,15 @@ impl Graph {
     /// assert_eq!(Graph::from_bytes(data::BYTES_50KM)?.edge_count(), 15_498);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn edge_count(&self) -> u32 {
-        self.archived().edge_endpoints.len() as u32
+        // An `EdgeId` is `u32` by the on-disk schema
+        // (`DirectedEdge::edge_id: u32`), so the endpoint table can never
+        // hold more entries than `u32::MAX`.
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            self.archived().edge_endpoints.len() as u32
+        }
     }
 
     /// Number of directed half-edges in the CSR adjacency.
@@ -471,8 +494,15 @@ impl Graph {
     /// assert_eq!(2 * graph.edge_count() - graph.directed_edge_count(), 20);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn directed_edge_count(&self) -> u32 {
-        self.archived().edges.len() as u32
+        // CSR row pointers into this table are `u32` by the on-disk
+        // schema (`GraphData::node_offsets: Vec<u32>`), so it can never
+        // hold more entries than `u32::MAX`.
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            self.archived().edges.len() as u32
+        }
     }
 }
 
@@ -518,6 +548,16 @@ fn scale_km(weight_km: f32) -> u64 {
 /// into the library), but note the **argument order differs**: the
 /// build function takes `(lng, lat)`, whereas this one takes
 /// `(lat, lng)` to match the public [`Graph::route`] coordinate order.
+// MUST NOT be "fixed" to `mul_add`. `f64::mul_add` performs a single
+// fused rounding step, so it returns a bit-for-bit *different* result
+// from a separate multiply and add. That would shift nearest-node
+// snapping at `Graph::route`'s endpoints and drift the golden distance
+// table in `tests/fixtures/routes.json` (`tests/golden_routes.rs` is the
+// tripwire). The same reasoning applies to the identical expression in
+// `build/geometry.rs::haversine_km`, where a change would additionally
+// rebake the edge weights in every `.rkyv` archive. Accuracy is not the
+// binding constraint here; reproducibility against the baked archives is.
+#[allow(clippy::suboptimal_flops)]
 fn haversine_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
     let (lat1_r, lat2_r) = (lat1.to_radians(), lat2.to_radians());
     let dlat = (lat2 - lat1).to_radians();
@@ -627,6 +667,7 @@ impl Graph {
     /// ));
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use = "the computed Route is the only result; dropping it does no work"]
     pub fn route(
         &self,
         from: (f64, f64),
@@ -849,13 +890,15 @@ mod tests {
     /// `set_var`/`remove_var` require for soundness.
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-    /// AC3: with no env var and OUT_DIR step disabled, the
+    /// AC3: with no env var and `OUT_DIR` step disabled, the
     /// static-fallback satisfies `load(50)` under default features
     /// (`data-50km`).
     #[test]
     #[cfg(feature = "data-50km")]
     fn load_50km_falls_through_to_static() {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // SAFETY: the ENV_LOCK guard above ensures this test is the
         // only thread mutating env state or `skip_out_dir` for its
         // duration, satisfying Rust 2024's single-threaded-mutation
@@ -874,7 +917,9 @@ mod tests {
     #[test]
     #[cfg(not(feature = "data-50km"))]
     fn load_50km_data_not_available_when_feature_off() {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // SAFETY: the ENV_LOCK guard above ensures this test is the
         // only thread mutating env state or `skip_out_dir` for its
         // duration, satisfying Rust 2024's single-threaded-mutation
@@ -889,10 +934,13 @@ mod tests {
         }
     }
 
-    /// `$RUSTYROUTE_DATA_DIR` set to a non-existent dir → DataFileMissing.
+    /// `$RUSTYROUTE_DATA_DIR` set to a non-existent dir →
+    /// [`LoadError::DataFileMissing`].
     #[test]
     fn load_50km_data_file_missing_when_env_dir_empty() {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let tmp = std::env::temp_dir().join("rustyroute_test_nonexistent_dir");
         // SAFETY: the ENV_LOCK guard above ensures this test is the
         // only thread mutating env state for its duration, satisfying
