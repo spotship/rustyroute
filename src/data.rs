@@ -1,7 +1,8 @@
 //! Feature-gated static byte slices for each pre-baked graph
-//! resolution. Each `BYTES_{N}KM` const is `include_bytes!`-baked at
-//! rustyroute's compile time from `$OUT_DIR/data/{N}km.rkyv` produced
-//! by `build.rs`.
+//! resolution.
+//!
+//! Each `BYTES_{N}KM` const is `include_bytes!`-baked at rustyroute's
+//! compile time from `$OUT_DIR/data/{N}km.rkyv` produced by `build.rs`.
 //!
 //! These slices are the primary distribution mechanism for downstream
 //! consumers: with the default `data-50km` feature, downstream code
@@ -79,14 +80,40 @@ include!(concat!(env!("OUT_DIR"), "/data_lens.rs"));
 // `&'static [u8]` slice borrowed from its `data` field. Keeping both
 // behind one macro avoids five copies of the same `include_bytes!`
 // boilerplate drifting out of sync.
+// The `#[doc = concat!(...)]` on the public slice is what satisfies the
+// crate's `#![deny(missing_docs)]` for all five resolutions in one edit
+// (ENG-4684). Documenting the generator rather than five generated sites
+// follows the same reasoning as `build/registry.rs`'s doc comment on the
+// generated `EDGE_GROUPS` const. `$res` exists purely so the rendered
+// prose can name the resolution in human form.
 macro_rules! define_bytes {
-    ($feature:literal, $raw:ident, $public:ident, $len:ident, $path:literal) => {
+    ($feature:literal, $raw:ident, $public:ident, $len:ident, $res:literal, $path:literal) => {
         #[cfg(feature = $feature)]
         const $raw: Aligned4<{ $len }> = Aligned4 {
             _align: [],
             data: *include_bytes!(concat!(env!("OUT_DIR"), $path)),
         };
         #[cfg(feature = $feature)]
+        #[doc = concat!(
+                    "The complete ", $res, " km graph archive, as a 4-byte-aligned ",
+                    "`&'static [u8]`.\n\n",
+                    "`include_bytes!`-baked at rustyroute's own compile time from ",
+                    "`$OUT_DIR", $path, "`, and therefore present in the library binary ",
+                    "whether or not the consumer has a data directory. Requires the ",
+                    "`", $feature, "` Cargo feature (`data-50km` is the only one enabled ",
+                    "by `default`).\n\n",
+                    "The bytes are the on-disk archive format described in ",
+                    "[`crate::graph`]: a 4-byte `b\"RRG1\"` magic, a little-endian `u32` ",
+                    "[`SCHEMA_VERSION`](crate::graph::SCHEMA_VERSION), then the rkyv ",
+                    "payload. Pass the whole slice to ",
+                    "[`Graph::from_bytes`](crate::Graph::from_bytes) — which validates the ",
+                    "prefix and the payload — rather than slicing it by hand.\n\n",
+                    "Alignment matters: rkyv's relative pointers need a 4-byte-aligned ",
+                    "payload, so the underlying static is wrapped in `Aligned4` (see the ",
+                    "module docs). Copying these bytes into a `Vec<u8>` may lose that ",
+                    "alignment and make `from_bytes` fail with ",
+                    "[`LoadError::InvalidArchive`](crate::LoadError::InvalidArchive).",
+                )]
         pub const $public: &[u8] = &$raw.data;
     };
 }
@@ -96,6 +123,7 @@ define_bytes!(
     RAW_5KM,
     BYTES_5KM,
     DATA_LEN_5KM,
+    "5",
     "/data/5km.rkyv"
 );
 define_bytes!(
@@ -103,6 +131,7 @@ define_bytes!(
     RAW_10KM,
     BYTES_10KM,
     DATA_LEN_10KM,
+    "10",
     "/data/10km.rkyv"
 );
 define_bytes!(
@@ -110,6 +139,7 @@ define_bytes!(
     RAW_20KM,
     BYTES_20KM,
     DATA_LEN_20KM,
+    "20",
     "/data/20km.rkyv"
 );
 define_bytes!(
@@ -117,6 +147,7 @@ define_bytes!(
     RAW_50KM,
     BYTES_50KM,
     DATA_LEN_50KM,
+    "50",
     "/data/50km.rkyv"
 );
 define_bytes!(
@@ -124,6 +155,7 @@ define_bytes!(
     RAW_100KM,
     BYTES_100KM,
     DATA_LEN_100KM,
+    "100",
     "/data/100km.rkyv"
 );
 
