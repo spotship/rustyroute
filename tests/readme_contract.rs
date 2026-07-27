@@ -135,23 +135,9 @@ fn readme_rust_fences_are_exactly_the_two_expected() {
 #[test]
 fn readme_edge_group_table_matches_edge_groups_exactly() {
     let readme = read("README.md");
-    let header = "| Group | Source |";
-    let start = readme
-        .find(header)
-        .unwrap_or_else(|| panic!("README.md must contain an edge-group table headed `{header}`"));
-
-    let names: Vec<String> = readme[start..]
-        .lines()
-        .skip(2) // header row + `|---|---|` separator
-        .take_while(|l| l.starts_with('|'))
-        .map(|l| {
-            let cell = l
-                .split('|')
-                .nth(1)
-                .unwrap_or_else(|| panic!("malformed table row: {l:?}"))
-                .trim();
-            cell.trim_matches('`').to_string()
-        })
+    let names: Vec<String> = edge_group_rows(&readme)
+        .into_iter()
+        .map(|(group, _source)| group)
         .collect();
 
     let expected: Vec<String> = rustyroute::EDGE_GROUPS
