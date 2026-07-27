@@ -92,6 +92,46 @@ jobs:
           shared-key: features-${{ matrix.label }}
       - run: cargo build ${{ matrix.flags }}
 
+  # ENG-4688: wasm32 cross-compile smoke build. rustyroute's OSS
+  # audience includes static, browser-side voyage planners, so the
+  # library must keep linking for the wasm32-unknown-unknown target.
+  # Nothing else in this file cross-compiles, so an accidental
+  # `std::os::unix`, `mio`, or other native-only dependency would pass
+  # all three host-OS test rows and only surface downstream. Locked by
+  # tests/ci_workflow.rs.
+  #
+  # Deliberate omissions, all load-bearing:
+  #   - No wasm-bindgen: this is a "does it compile?" smoke test, not a
+  #     JS binding (that is a future, separately-scoped crate).
+  #   - No --all-targets / cargo test: rusqlite (bundled SQLite) and
+  #     tempfile are dev-dependencies (Cargo.toml:39-44), and dev-deps
+  #     build for the TARGET. Plain `cargo build` is lib-only.
+  #   - No --features cli: `cli` (Cargo.toml:22-25) is the placeholder
+  #     for the future clap + tokio binary, neither of which builds
+  #     here.
+  #   - --no-default-features drops data-50km (Cargo.toml:16). The data
+  #     features add megabytes, not dependencies, and this job is a
+  #     dependency gate.
+  #
+  # rusqlite is also a build-dependency (Cargo.toml:35-37), which is
+  # fine: build-script units compile for the HOST even when
+  # cross-compiling, so bundled SQLite never enters this build path.
+  # The output is an .rlib, not a .wasm module — the crate declares no
+  # cdylib crate-type and no [[bin]] — which is sufficient, since
+  # non-wasm crates fail at compile time long before linking.
+  wasm:
+    name: wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm
+      - run: cargo build --target wasm32-unknown-unknown --no-default-features
+
   coverage:
     name: coverage
     runs-on: ubuntu-latest
