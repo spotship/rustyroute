@@ -1,0 +1,95 @@
+{
+  "routes": [
+    {
+      "key": "marseille_shanghai_suez",
+      "name": "Marseille -> Shanghai (via Suez)",
+      "from": [43.3000, 5.3700],
+      "to": [31.2300, 121.4700],
+      "blocked": [],
+      "resolutions": [5, 10, 20, 50, 100],
+      "expected_km": 16354.0,
+      "tol": 0.01,
+      "tol_100km": 0.05,
+      "real_world_km": 15900,
+      "source": "Marseille-Shanghai via Suez ~8,600 nm ~= 15,900 km (sea-distances.org); expected_km pinned to rustyroute vendored marnet_plus 50km output (ENG-4681 spec 2a)"
+    },
+    {
+      "key": "marseille_shanghai_cape",
+      "name": "Marseille -> Shanghai (Cape route, Suez blocked)",
+      "from": [43.3000, 5.3700],
+      "to": [31.2300, 121.4700],
+      "blocked": ["suezCanal"],
+      "resolutions": [5, 10, 20, 50, 100],
+      "expected_km": 25048.0,
+      "tol": 0.02,
+      "tol_100km": 0.05,
+      "real_world_km": 25000,
+      "source": "Marseille-Shanghai round Cape of Good Hope ~13,500 nm ~= 25,000 km; expected_km pinned to rustyroute 50km output with suezCanal blocked (ENG-4681 spec 2a)"
+    },
+    {
+      "key": "rotterdam_new_york",
+      "name": "Rotterdam -> New York",
+      "from": [51.9500, 4.1300],
+      "to": [40.6600, -74.0500],
+      "blocked": [],
+      "resolutions": [50],
+      "expected_km": 6185.0,
+      "tol": 0.01,
+      "tol_100km": 0.05,
+      "real_world_km": 6190,
+      "source": "Rotterdam-New York ~3,340 nm ~= 6,190 km (sea-distances.org); expected_km pinned to rustyroute 50km output"
+    },
+    {
+      "key": "singapore_yokohama",
+      "name": "Singapore -> Yokohama",
+      "from": [1.2700, 103.8400],
+      "to": [35.4500, 139.6400],
+      "blocked": [],
+      "resolutions": [50],
+      "expected_km": 5523.0,
+      "tol": 0.01,
+      "tol_100km": 0.05,
+      "real_world_km": 5350,
+      "source": "Singapore-Yokohama ~2,890 nm ~= 5,350 km (sea-distances.org); expected_km pinned to rustyroute 50km output (ENG-4681 spec 2a)"
+    },
+    {
+      "key": "hamburg_self",
+      "name": "Hamburg -> Hamburg (self-route)",
+      "from": [53.5500, 9.9900],
+      "to": [53.5500, 9.9900],
+      "blocked": [],
+      "resolutions": [50],
+      "expected_km": 0.0,
+      "tol": 0.0,
+      "tol_100km": 0.0,
+      "real_world_km": 0,
+      "source": "Identical endpoints; from==to snaps to one node and returns exactly 0.0 (src/loader.rs:443-449)"
+    },
+    {
+      "key": "menai_allowed",
+      "name": "Conwy Bay -> Cardigan Bay (round Anglesey), Menai allowed",
+      "from": [53.3000, -3.9000],
+      "to": [52.8000, -4.6000],
+      "blocked": [],
+      "resolutions": [5, 10, 20, 50, 100],
+      "expected_km": null,
+      "tol": null,
+      "tol_100km": null,
+      "real_world_km": null,
+      "source": "Menai-transit baseline: open route uses the Menai Strait shortcut around Anglesey (North Wales). Baseline for the blocked comparison, not an absolute golden (ENG-4681 spec 2b)"
+    },
+    {
+      "key": "menai_blocked",
+      "name": "Conwy Bay -> Cardigan Bay (round Anglesey), Menai blocked",
+      "from": [53.3000, -3.9000],
+      "to": [52.8000, -4.6000],
+      "blocked": ["menaiStrait"],
+      "resolutions": [5, 10, 20, 50, 100],
+      "expected_km": null,
+      "tol": null,
+      "tol_100km": null,
+      "real_world_km": null,
+      "source": "Blocking menaiStrait forces the detour around Anglesey; must be strictly greater than the menai_allowed baseline at every resolution (ENG-4681 spec 2b)"
+    }
+  ]
+}
