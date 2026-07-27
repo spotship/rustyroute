@@ -394,6 +394,30 @@ fn bad_input_is_rejected_with_400() {
     );
 }
 
+/// Every error the example produces leaves by the same door: a JSON
+/// `{"error": …}` body. A 404 that returned bare text while 400s
+/// returned JSON would force clients to branch on status before they
+/// can parse — raised in review of this PR.
+///
+/// Blocking Suez *and* Gibraltar seals the Mediterranean, so Marseille
+/// genuinely cannot reach Shanghai: a real `RouteError::NoRoute`.
+#[test]
+fn no_route_returns_a_json_error_like_every_other_failure() {
+    let server = start_server();
+    let (status, body) = get(
+        server.port,
+        "/route?fromLatLng=43.30,5.37&toLatLng=31.23,121.47&block=suezCanal,gibraltarStrait",
+    );
+    assert_eq!(status, 404, "body was: {body}");
+
+    let v: serde_json::Value = serde_json::from_str(&body)
+        .unwrap_or_else(|e| panic!("404 body must be JSON, got {body:?}: {e}"));
+    assert_eq!(
+        v["error"], "no route",
+        "404 must use the same {{\"error\": …}} shape as the 400s; got {body}"
+    );
+}
+
 /// A trailing comma or a blank entry in `block=` is natural input, and
 /// the CLI deliberately treats it as "nothing extra to block" rather
 /// than reporting `unknown edge group: ` with a blank name

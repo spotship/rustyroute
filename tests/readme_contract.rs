@@ -95,6 +95,29 @@ fn fence_info_strings(md: &str) -> Vec<String> {
     out
 }
 
+/// Lines that are *prose*, i.e. outside every fenced code block.
+///
+/// Without this, anything inside a fence that happens to start with `#`
+/// reads as a Markdown heading. Not hypothetical: the dependency block
+/// carries a TOML comment (`# Until the first crates.io release…`) and
+/// the `sh`/`text` fences use `#` too. This is exactly what
+/// `readme_sections_appear_in_ticket_order` tripped over the moment
+/// that comment was added.
+fn prose_lines(md: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut in_fence = false;
+    for line in md.lines() {
+        if line.trim_end().starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if !in_fence {
+            out.push(line);
+        }
+    }
+    out
+}
+
 /// AC2's real guard. `lib_rs_compiles_readme_as_doctests` only proves
 /// the anchor is present — it says nothing about whether the fence it
 /// points at is still *live*.
@@ -269,8 +292,8 @@ fn readme_edge_group_table_pass_tags_match_pass_groups() {
 #[test]
 fn readme_sections_appear_in_ticket_order() {
     let readme = read("README.md");
-    let headings: Vec<&str> = readme
-        .lines()
+    let headings: Vec<&str> = prose_lines(&readme)
+        .into_iter()
         .filter(|l| l.starts_with("# ") || l.starts_with("## "))
         .collect();
     let expected = [
@@ -289,6 +312,66 @@ fn readme_sections_appear_in_ticket_order() {
     assert_eq!(
         headings, expected,
         "README.md's sections must match the ENG-4683 inventory, in order"
+    );
+}
+
+/// The README states the quickstart's exact output —
+/// "This prints `16354.1 km over 106 points`" — and nothing asserted it,
+/// so a change to the graph data or the cost model would leave the claim
+/// silently wrong. Rather than soften the prose to a vague
+/// approximation, run the same computation and hold the README to it.
+///
+/// The numbers are *parsed out of the README*, not duplicated here: a
+/// second hardcoded copy would just be another thing to drift.
+///
+/// No `data-*` feature gate, matching `tests/golden_routes.rs`: this
+/// calls only `Graph::load`, which resolves through `$OUT_DIR` for every
+/// resolution `build.rs` bakes, regardless of which features are on.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn readme_quickstart_output_matches_reality() {
+    use rustyroute::Graph;
+    use std::collections::HashSet;
+
+    let readme = read("README.md");
+    let claim = readme
+        .lines()
+        .find(|l| l.starts_with("This prints `"))
+        .expect("README.md must state the quickstart's output as ``This prints `…` ``");
+
+    // "This prints `16354.1 km over 106 points`."
+    let inner = claim
+        .split('`')
+        .nth(1)
+        .unwrap_or_else(|| panic!("malformed claim line: {claim:?}"));
+    let mut words = inner.split_whitespace();
+    let claimed_km: f64 = words
+        .next()
+        .and_then(|w| w.parse().ok())
+        .unwrap_or_else(|| panic!("could not read a distance out of {inner:?}"));
+    let claimed_points: usize = words
+        .nth(2) // skip "km" and "over"
+        .and_then(|w| w.parse().ok())
+        .unwrap_or_else(|| panic!("could not read a point count out of {inner:?}"));
+
+    // Exactly what the quickstart does.
+    let graph = Graph::load(50).expect("Graph::load(50)");
+    let route = graph
+        .route((43.30, 5.37), (31.23, 121.47), &HashSet::new())
+        .expect("route Marseille -> Shanghai");
+
+    assert_eq!(
+        route.coordinates.len(),
+        claimed_points,
+        "README says the quickstart prints {claimed_points} points, but it prints {}",
+        route.coordinates.len()
+    );
+    // The snippet prints `{:.1}`, so compare at that precision.
+    assert_eq!(
+        format!("{:.1}", route.distance_km),
+        format!("{claimed_km:.1}"),
+        "README says the quickstart prints {claimed_km:.1} km, but it prints {:.1}",
+        route.distance_km
     );
 }
 

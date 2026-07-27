@@ -23,12 +23,14 @@ is nothing to download and no service to call.
 
 ## Quickstart (library)
 
+rustyroute is **not on crates.io yet**, so until the first release
+depend on it by git:
+
 ```sh
-cargo add rustyroute
+cargo add rustyroute --git https://github.com/spotship/rustyroute
 ```
 
-(Not on crates.io yet — until the first release, depend on it by git or
-path.)
+After the first release, plain `cargo add rustyroute` will work.
 
 That is the whole setup on your side. The default features bake the
 50 km graph into your binary, so the snippet below runs as-is — no
@@ -63,7 +65,8 @@ A complete routing service in about fifty lines. Add these dependencies:
 
 ```toml
 [dependencies]
-rustyroute = "0.1"
+# Until the first crates.io release; afterwards: rustyroute = "0.1"
+rustyroute = { git = "https://github.com/spotship/rustyroute" }
 axum = "0.8"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
@@ -187,24 +190,36 @@ async fn route(Query(q): Query<RouteQuery>) -> Response {
             }))
             .into_response()
         }
-        Err(RouteError::NoRoute) => (StatusCode::NOT_FOUND, "no route").into_response(),
+        // Every error leaves by the same door, so a client can parse one
+        // shape: `{"error": "..."}` with a meaningful status.
+        Err(RouteError::NoRoute) => error(StatusCode::NOT_FOUND, "no route"),
         Err(e) => bad_request(&e.to_string()),
     }
 }
 
+fn error(status: StatusCode, msg: &str) -> Response {
+    (status, Json(json!({ "error": msg }))).into_response()
+}
+
 fn bad_request(msg: &str) -> Response {
-    (StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))).into_response()
+    error(StatusCode::BAD_REQUEST, msg)
 }
 
 #[tokio::main]
 async fn main() {
     let app = Router::new().route("/route", get(route));
-    // `PORT=0` asks the OS for a free port — that is how
+    // Loopback by default: this is example code people paste, and it
+    // should not expose a routing service on every interface just
+    // because someone tried the quickstart. Set `HOST=0.0.0.0` when you
+    // actually want that — in a container, say.
+    //
+    // `PORT=0` asks the OS for a free port, which is how
     // tests/axum_example_e2e.rs boots this example without colliding
     // with anything already on 3000. The line below prints whichever
-    // port was actually bound.
+    // address was actually bound.
+    let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".into());
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
+    let listener = tokio::net::TcpListener::bind(format!("{host}:{port}"))
         .await
         .unwrap();
     println!("listening on http://{}", listener.local_addr().unwrap());
