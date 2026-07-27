@@ -5,9 +5,9 @@
 // are scoped to that module, so one edit here covers every crate this
 // file is compiled into: the build script (via `build.rs`'s `#[path]`
 // mod) and the integration tests that re-include it the same way
-// (`tests/graph_load.rs`, `tests/build_helpers.rs`,
-// `tests/group_assignment.rs`, `tests/tampered_gpkg_panic.rs`). The
-// alternative -- repeating each allow at five crate roots -- drifts.
+// (`tests/graph_load.rs`, `tests/group_assignment.rs`,
+// `tests/tampered_gpkg_panic.rs`). The alternative -- repeating each
+// allow at those four crate roots -- drifts.
 //
 // Every `usize as u32` below narrows a node id, an edge id or a CSR row
 // pointer, all of which are `u32` in the on-disk schema

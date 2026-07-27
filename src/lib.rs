@@ -37,7 +37,7 @@
 //!
 //! let suez = graph.edges_for_groups(["suezCanal"])?;
 //! let round_the_cape = graph.route(marseille, shanghai, &suez)?;
-//! assert!(round_the_cape.distance_km > 25_000.0);
+//! assert!(round_the_cape.distance_km > via_suez.distance_km + 8_000.0);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!

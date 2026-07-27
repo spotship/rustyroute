@@ -341,11 +341,17 @@ impl Graph {
 
     #[cfg(not(target_arch = "wasm32"))]
     // Taking `File` by value is deliberate ownership transfer, not an
-    // oversight: `memmap2::Mmap::map` only borrows the handle, but the
-    // mapping must outlive it, so `load_file` becomes the sole owner and
-    // drops the descriptor at the end of this frame. Passing `&File`
-    // would let a caller keep the handle alive and mutate the file
-    // underneath a mapping the SAFETY note below assumes is immutable.
+    // oversight: `memmap2::Mmap::map` only borrows the handle, and the
+    // resulting mapping stays valid after the descriptor is closed, so
+    // `load_file` becomes the sole owner and drops it at the end of this
+    // frame. No caller needs the handle afterwards, and by-value makes
+    // that lifecycle explicit rather than leaving a live `&File` at the
+    // call site with nothing left to do.
+    //
+    // This is a tidiness argument, not a safety one: the signature
+    // enforces nothing about the file's contents. Immutability for the
+    // life of the mapping is the operator's responsibility -- see the
+    // SAFETY note below.
     #[allow(clippy::needless_pass_by_value)]
     fn load_file(file: std::fs::File, resolution_km: u32) -> Result<Self, LoadError> {
         // SAFETY: memmap2::Mmap::map is unsafe because the kernel can
@@ -443,9 +449,11 @@ impl Graph {
     /// ```
     #[must_use]
     pub fn node_count(&self) -> u32 {
-        // A node index is `u32` by the on-disk schema
-        // (`GraphData::node_offsets: Vec<u32>`), so the table can never
-        // hold more entries than `u32::MAX`.
+        // A node id is `u32` by the on-disk schema ([`NodeId`], and
+        // `DirectedEdge::source` / `DirectedEdge::target` in
+        // `src/graph.rs`), so a graph can never carry more nodes than
+        // `u32::MAX` -- an unaddressable node could not be referenced by
+        // any edge. Enforced at build time in `build/csr.rs`.
         #[allow(clippy::cast_possible_truncation)]
         {
             self.archived().nodes.len() as u32

@@ -6,8 +6,9 @@
 
 // ENG-4684: see `build/csr.rs` for why this is a module-level inner
 // attribute rather than a crate-root allow -- this file is re-included
-// via `#[path]` by `tests/tampered_gpkg_panic.rs` as well as compiled
-// into the build script.
+// via `#[path]` by `tests/graph_load.rs` and
+// `tests/tampered_gpkg_panic.rs` as well as compiled into the build
+// script.
 //
 // `iter_edges` returns `Result<_, String>` and every error path already
 // carries a human-readable message naming the failed operation; an

@@ -28,9 +28,10 @@
 // comparisons are precisely the cases where a tolerance would be wrong:
 // a fixture pinned at `expected_km == 0` must be exactly zero (a
 // non-zero-length "self-route" is a bug, not a rounding artefact), and
-// the `from`/`to` endpoint comparisons check that two fixture rows
-// describe the same voyage before their distances are compared against
-// each other. Substituting an epsilon anywhere here would let real drift
+// the `from == to` endpoint check proves a zero-km fixture really does
+// name one identical point, which is what makes the exact
+// `assert_eq!(distance_km, 0.0)` legitimate rather than lucky.
+// Substituting an epsilon anywhere here would let real drift
 // through -- which is the drift this file exists to catch.
 #![allow(clippy::float_cmp)]
 #![cfg(not(target_arch = "wasm32"))]
