@@ -78,7 +78,7 @@ pub enum LoadError {
     UnknownResolution(u32),
 
     /// The requested resolution is allowed, but no source (env var,
-    /// in-tree OUT_DIR, or static feature) was available. Enable the
+    /// in-tree `OUT_DIR`, or static feature) was available. Enable the
     /// matching `data-{N}km` feature or set `$RUSTYROUTE_DATA_DIR`.
     #[error(
         "data not available for {0}km — enable the `data-{0}km` feature or \
@@ -111,10 +111,12 @@ pub enum LoadError {
     InvalidArchive(rkyv::rancor::Error),
 }
 
-/// Owned handle to a loaded graph archive. Owns its backing buffer
-/// (an mmap on native, a `&'static [u8]` for `from_bytes` and wasm
-/// targets) and exposes `archived(&self) -> &ArchivedGraphData` tied
-/// to the handle's lifetime.
+/// Owned handle to a loaded graph archive.
+///
+/// Owns its backing buffer (an mmap on native, a `&'static [u8]` for
+/// [`Graph::from_bytes`] and wasm targets) and exposes
+/// [`archived`](Graph::archived) — returning an [`ArchivedGraphData`]
+/// reference tied to the handle's lifetime.
 ///
 /// `Graph` is `Send + Sync` (both backings are). It is NOT `Clone`:
 /// consumers who need multiple handles should wrap in
@@ -126,7 +128,7 @@ pub enum LoadError {
 /// process lifetime (routefinder), stash the `Graph` in a
 /// `OnceLock` and `Box::leak` it to obtain `&'static Graph`:
 ///
-/// ```ignore
+/// ```
 /// use std::sync::OnceLock;
 /// use rustyroute::Graph;
 ///
@@ -137,11 +139,18 @@ pub enum LoadError {
 ///         Box::leak(Box::new(g))
 ///     })
 /// }
+///
+/// // Every call returns the same `&'static` handle.
+/// assert_eq!(graph().resolution_km(), 50);
+/// assert!(std::ptr::eq(graph(), graph()));
 /// ```
 ///
 /// This deliberately leaks the graph for the process lifetime — that
 /// is the trade-off for avoiding per-call lifetime annotations on
-/// downstream routing APIs.
+/// downstream routing APIs. Running the example above as a doctest
+/// therefore leaks the ~3 MB 50 km archive handle until the doctest
+/// process exits, which is exactly the intended behaviour and not a
+/// bug the example is hiding.
 pub struct Graph {
     backing: GraphBacking,
     resolution_km: u32,
@@ -173,9 +182,47 @@ impl Graph {
     ///
     /// Validates the 4-byte magic, the 4-byte little-endian schema
     /// version, and then runs rkyv's checked `access` on the
-    /// remainder. The returned handle's `resolution_km()` is `0`
+    /// remainder. The returned handle's [`resolution_km`] is `0`
     /// because the archive bytes do not carry the resolution; use
     /// [`Graph::load`] when you need that field populated.
+    ///
+    /// The intended argument is one of the feature-gated
+    /// [`crate::data`] slices, which are 4-byte aligned for rkyv's
+    /// relative pointers. A slice re-borrowed from a `Vec<u8>` may not
+    /// be, and then fails with [`LoadError::InvalidArchive`].
+    ///
+    /// # Errors
+    ///
+    /// - [`LoadError::BadMagic`] if the first four bytes are not
+    ///   `b"RRG1"` — including when `bytes` is shorter than the 8-byte
+    ///   header, which reports a zero array.
+    /// - [`LoadError::UnsupportedSchema`] if bytes `4..8` do not decode
+    ///   to this build's [`SCHEMA_VERSION`].
+    /// - [`LoadError::InvalidArchive`] if rkyv's checked access rejects
+    ///   the payload: truncation, byte tampering, or misalignment.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, data};
+    /// let graph = Graph::from_bytes(data::BYTES_50KM)?;
+    /// assert_eq!(graph.node_count(), 7_390);
+    /// // The archive carries no resolution — see `resolution_km`.
+    /// assert_eq!(graph.resolution_km(), 0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// A truncated or tampered slice is rejected rather than trusted:
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, LoadError};
+    /// assert!(matches!(
+    ///     Graph::from_bytes(b"nope"),
+    ///     Err(LoadError::BadMagic(_))
+    /// ));
+    /// ```
+    ///
+    /// [`resolution_km`]: Graph::resolution_km
     pub fn from_bytes(bytes: &'static [u8]) -> Result<Graph, LoadError> {
         validate_header(bytes)?;
         // Checked access — surfaces InvalidArchive on tampering.
@@ -187,13 +234,61 @@ impl Graph {
         })
     }
 
-    /// Load a graph by resolution_km. Tries, in order:
+    /// Load a graph by resolution in kilometres.
+    ///
+    /// Tries, in order:
     /// 1. `$RUSTYROUTE_DATA_DIR/{N}km.rkyv` (if env var is set;
     ///    missing file → [`LoadError::DataFileMissing`])
     /// 2. `$OUT_DIR/data/{N}km.rkyv` baked at rustyroute compile time
     /// 3. `data::BYTES_{N}KM` static fallback (if the matching
     ///    `data-{N}km` feature is enabled)
     /// 4. [`LoadError::DataNotAvailable`]
+    ///
+    /// Step 1 is an unconditional override, not a preference: when
+    /// `$RUSTYROUTE_DATA_DIR` is set and does not contain the requested
+    /// file, `load` fails instead of falling through to steps 2 and 3.
+    /// Reach for [`Graph::from_bytes`] if you want a path that ignores
+    /// the environment entirely.
+    ///
+    /// # Errors
+    ///
+    /// - [`LoadError::UnknownResolution`] if `resolution_km` is not one
+    ///   of 5, 10, 20, 50, 100.
+    /// - [`LoadError::DataFileMissing`] if `$RUSTYROUTE_DATA_DIR` is set
+    ///   but holds no `{resolution_km}km.rkyv`.
+    /// - [`LoadError::Io`] for any other failure opening or mapping a
+    ///   located file.
+    /// - [`LoadError::BadMagic`], [`LoadError::UnsupportedSchema`] or
+    ///   [`LoadError::InvalidArchive`] if a file was located but failed
+    ///   validation — same checks as [`Graph::from_bytes`].
+    /// - [`LoadError::DataNotAvailable`] if the resolution is supported
+    ///   but no source resolved.
+    ///
+    /// # Examples
+    ///
+    /// This example requires `$RUSTYROUTE_DATA_DIR` to be **unset** — see
+    /// the note on step 1 above. With the variable unset it needs no
+    /// fixture and no network: step 2's `$OUT_DIR` is resolved at
+    /// *rustyroute's* compile time, so it still points at the archives
+    /// `build.rs` baked even when the caller is a separate crate.
+    ///
+    /// ```
+    /// # use rustyroute::Graph;
+    /// let graph = Graph::load(50)?;
+    /// assert_eq!(graph.resolution_km(), 50);
+    /// assert_eq!(graph.node_count(), 7_390);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// An unsupported resolution is rejected before any I/O:
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, LoadError};
+    /// assert!(matches!(
+    ///     Graph::load(42),
+    ///     Err(LoadError::UnknownResolution(42))
+    /// ));
+    /// ```
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load(resolution_km: u32) -> Result<Graph, LoadError> {
         const ALLOWED: &[u32] = &[5, 10, 20, 50, 100];
@@ -269,17 +364,54 @@ impl Graph {
         })
     }
 
-    /// Resolution in kilometres. Returns 0 for graphs constructed via
-    /// [`Graph::from_bytes`] (the archive header does not carry the
-    /// resolution; only [`Graph::load`] populates it).
+    /// Resolution in kilometres.
+    ///
+    /// Returns 0 for graphs constructed via [`Graph::from_bytes`] — the
+    /// archive header does not carry the resolution, so only
+    /// [`Graph::load`] can populate it. Treat 0 as "unknown", not as a
+    /// zero-kilometre grid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, data};
+    /// assert_eq!(Graph::load(50)?.resolution_km(), 50);
+    /// assert_eq!(Graph::from_bytes(data::BYTES_50KM)?.resolution_km(), 0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn resolution_km(&self) -> u32 {
         self.resolution_km
     }
 
-    /// Access the rkyv-archived form of the graph. The reference is
-    /// tied to `&self` — do not attempt to outlive the Graph handle.
-    /// Re-runs rkyv's checked access each call; cache into a local
-    /// `let g = self.archived();` if you intend to hot-loop.
+    /// Access the rkyv-archived form of the graph.
+    ///
+    /// The reference is tied to `&self` — do not attempt to outlive the
+    /// `Graph` handle. Re-runs rkyv's checked access each call; cache
+    /// into a local `let g = self.archived();` if you intend to
+    /// hot-loop.
+    ///
+    /// # Panics
+    ///
+    /// Panics if rkyv's checked access rejects the payload. This cannot
+    /// be triggered through the public API: [`Graph::from_bytes`] and
+    /// [`Graph::load`] both run the same checked access before handing
+    /// back a handle, and the backing bytes are treated as immutable for
+    /// the handle's lifetime. It would fire only if the mapped file were
+    /// mutated in place behind the mmap, which the SAFETY note on
+    /// `load_file` documents as the operator's responsibility.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, data};
+    /// let graph = Graph::from_bytes(data::BYTES_50KM)?;
+    /// let archived = graph.archived();
+    /// assert_eq!(archived.nodes.len(), graph.node_count() as usize);
+    /// // The 13 baked-in chokepoint/passage groups.
+    /// assert_eq!(archived.groups.len(), 13);
+    /// assert_eq!(archived.groups[0].name.as_str(), "suezCanal");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn archived(&self) -> &ArchivedGraphData {
         let payload: &[u8] = match &self.backing {
             #[cfg(not(target_arch = "wasm32"))]
@@ -290,22 +422,55 @@ impl Graph {
             .expect("validated on construction; payload bytes are immutable")
     }
 
-    /// Number of distinct nodes in the graph.
+    /// Number of distinct nodes in the graph. Valid [`NodeId`]s are
+    /// `0..node_count()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, data};
+    /// assert_eq!(Graph::from_bytes(data::BYTES_50KM)?.node_count(), 7_390);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn node_count(&self) -> u32 {
         self.archived().nodes.len() as u32
     }
 
     /// Number of undirected edges (distinct
-    /// `(src_node_id, dst_node_id)` endpoints).
+    /// `(src_node_id, dst_node_id)` endpoints). Valid [`EdgeId`]s are
+    /// `0..edge_count()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, data};
+    /// assert_eq!(Graph::from_bytes(data::BYTES_50KM)?.edge_count(), 15_498);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn edge_count(&self) -> u32 {
         self.archived().edge_endpoints.len() as u32
     }
 
-    /// Number of directed half-edges in the CSR adjacency. For
-    /// non-self-loop undirected edges this is `2 * edge_count`; for
-    /// self-loops the forward half is emitted once and the reverse
-    /// is suppressed, so `directed_edge_count` ranges between
-    /// `edge_count` (all self-loops) and `2 * edge_count`.
+    /// Number of directed half-edges in the CSR adjacency.
+    ///
+    /// For non-self-loop undirected edges this is
+    /// `2 * edge_count`; for self-loops the forward half is emitted once
+    /// and the reverse is suppressed, so `directed_edge_count` ranges
+    /// between `edge_count` (all self-loops) and `2 * edge_count`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, data};
+    /// let graph = Graph::from_bytes(data::BYTES_50KM)?;
+    /// assert_eq!(graph.directed_edge_count(), 30_976);
+    /// // Inside the documented range. The 20-half-edge shortfall against
+    /// // `2 * edge_count` is 20 self-loops, whose reverse half is
+    /// // suppressed.
+    /// assert!(graph.directed_edge_count() <= 2 * graph.edge_count());
+    /// assert_eq!(2 * graph.edge_count() - graph.directed_edge_count(), 20);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn directed_edge_count(&self) -> u32 {
         self.archived().edges.len() as u32
     }
@@ -417,6 +582,51 @@ impl Graph {
     /// each hop Dijkstra already relaxed across; the internal
     /// `expect` guards that invariant and firing it would signal graph
     /// corruption, not a caller error.
+    ///
+    /// # Examples
+    ///
+    /// Marseille to Shanghai, then the same voyage with the Suez Canal
+    /// closed. The detour round the Cape of Good Hope costs roughly
+    /// 8,700 km:
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use rustyroute::{Graph, data};
+    /// let graph = Graph::from_bytes(data::BYTES_50KM)?;
+    /// let marseille = (43.30, 5.37);
+    /// let shanghai = (31.23, 121.47);
+    ///
+    /// let via_suez = graph.route(marseille, shanghai, &HashSet::new())?;
+    /// assert!((via_suez.distance_km - 16_354.0).abs() < 1.0);
+    /// // One coordinate per node, one edge per hop between them.
+    /// assert_eq!(via_suez.coordinates.len(), via_suez.edge_ids.len() + 1);
+    ///
+    /// let suez = graph.edges_for_groups(["suezCanal"])?;
+    /// let round_the_cape = graph.route(marseille, shanghai, &suez)?;
+    /// assert!(round_the_cape.distance_km > via_suez.distance_km + 8_000.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// Endpoints are validated before any search runs, and both are
+    /// snapped to the nearest node — so a self-route is a zero-distance
+    /// single-coordinate path rather than an error:
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use rustyroute::{Graph, RouteError, data};
+    /// let graph = Graph::from_bytes(data::BYTES_50KM)?;
+    /// let gibraltar = (36.0, -5.5);
+    ///
+    /// let here = graph.route(gibraltar, gibraltar, &HashSet::new())?;
+    /// assert_eq!(here.coordinates.len(), 1);
+    /// assert!(here.edge_ids.is_empty());
+    ///
+    /// assert!(matches!(
+    ///     graph.route((91.0, 0.0), gibraltar, &HashSet::new()),
+    ///     Err(RouteError::BadFromCoord(_))
+    /// ));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn route(
         &self,
         from: (f64, f64),
@@ -509,10 +719,38 @@ impl Graph {
     /// Collect the union of undirected edge ids for the named edge
     /// groups (the 13 baked-in chokepoints/passages).
     ///
+    /// The result is meant to be handed straight to [`Graph::route`] as
+    /// its `blocked` set. Names are matched byte-exactly against
+    /// [`GroupEntry::name`], so the whole call fails on the first
+    /// unrecognised name rather than silently blocking nothing.
+    ///
     /// # Errors
     ///
     /// [`RouteError::UnknownGroup`] if any name does not match a baked-in
     /// group.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustyroute::{Graph, RouteError, data};
+    /// let graph = Graph::from_bytes(data::BYTES_50KM)?;
+    ///
+    /// let chokepoints = graph.edges_for_groups(["suezCanal", "panamaCanal"])?;
+    /// assert!(!chokepoints.is_empty());
+    /// // The union is deduplicated, so two groups yield at most the sum
+    /// // of their sizes.
+    /// let suez = graph.edges_for_groups(["suezCanal"])?;
+    /// assert!(chokepoints.is_superset(&suez));
+    ///
+    /// // Matching is exact — no case folding, no whitespace tolerance.
+    /// assert!(matches!(
+    ///     graph.edges_for_groups(["Suez Canal"]),
+    ///     Err(RouteError::UnknownGroup(name)) if name == "Suez Canal"
+    /// ));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// [`GroupEntry::name`]: crate::graph::GroupEntry::name
     pub fn edges_for_groups<'a>(
         &self,
         names: impl IntoIterator<Item = &'a str>,

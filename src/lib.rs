@@ -18,6 +18,40 @@
 //! chokepoint/passage groups into an [`EdgeId`] set). Distance matrices
 //! and further algorithms follow in later tickets. See `README.md` and
 //! `NOTICE` for project status and upstream attribution.
+//!
+//! # Examples
+//!
+//! Route Marseille to Shanghai on the default 50 km graph, first
+//! unrestricted and then with the Suez Canal closed:
+//!
+//! ```
+//! use std::collections::HashSet;
+//! use rustyroute::{Graph, data};
+//!
+//! let graph = Graph::from_bytes(data::BYTES_50KM)?;
+//! let marseille = (43.30, 5.37);
+//! let shanghai = (31.23, 121.47);
+//!
+//! let via_suez = graph.route(marseille, shanghai, &HashSet::new())?;
+//! assert!((via_suez.distance_km - 16_354.0).abs() < 1.0);
+//!
+//! let suez = graph.edges_for_groups(["suezCanal"])?;
+//! let round_the_cape = graph.route(marseille, shanghai, &suez)?;
+//! assert!(round_the_cape.distance_km > 25_000.0);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! On native targets [`Graph::load`] is the production entry point — it
+//! mmaps the archive instead of baking it into the binary, and it is the
+//! only constructor that knows the graph's resolution:
+//!
+//! ```
+//! # use rustyroute::Graph;
+//! let graph = Graph::load(50)?;
+//! assert_eq!(graph.resolution_km(), 50);
+//! assert_eq!(graph.node_count(), 7_390);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 #![deny(
     unsafe_code,
