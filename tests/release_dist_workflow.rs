@@ -2,13 +2,12 @@
 //! binary-distribution layer: `dist-workspace.toml` +
 //! `.github/workflows/release.yaml`.
 //!
-//! DORMANT-UNTIL-BINARY NOTE: rustyroute has no [[bin]] target yet — the
-//! `cli` feature is a forward-declared placeholder (Cargo.toml:22-25,
-//! ENG-4xxx). These tests lock the *config shape* so the layer is ready
-//! to activate when the binary lands; they do NOT (and cannot) verify
-//! that dist actually builds/attaches binaries — that requires GitHub
-//! Actions runners and a real tag push, and is a known, accepted gap
-//! (spec AC9).
+//! BINARY-LANDED NOTE: the `rustyroute` [[bin]] target now exists
+//! (src/bin/rustyroute.rs, gated on the `cli` feature — ENG-4682).
+//! These tests lock the *config shape* only; they do NOT (and cannot)
+//! verify that dist actually builds/attaches binaries — that requires
+//! GitHub Actions runners and a real tag push, and is a known, accepted
+//! gap (spec AC9).
 //!
 //! No YAML/TOML parser dev-dependency — same convention as
 //! tests/ci_workflow.rs:36-39 / tests/audit_workflow.rs:22-27.

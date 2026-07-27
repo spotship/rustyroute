@@ -131,6 +131,14 @@ define_bytes!(
 /// `None` when the given resolution is not compiled in (feature not
 /// enabled). Outside the {5,10,20,50,100} set, also returns `None` —
 /// callers validate the resolution separately first.
+///
+/// Native-only (ENG-4688). Its sole caller is `Graph::load` in
+/// `src/loader.rs`, which is itself gated to non-wasm32 targets;
+/// without the matching gate here the function is unreachable on
+/// wasm32 and rustc's `dead_code` lint fires during the `wasm` CI
+/// smoke build. wasm consumers use `Graph::from_bytes`, which takes
+/// the byte slice directly and never goes through this helper.
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(unused_variables)] // when no data-* feature is enabled, param is unused
 pub(crate) fn bytes_for(resolution_km: u32) -> Option<&'static [u8]> {
     match resolution_km {
