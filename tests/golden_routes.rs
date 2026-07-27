@@ -31,8 +31,8 @@ use rustyroute::{EdgeId, Graph};
 use serde::Deserialize;
 
 /// Grid resolutions rustyroute ships data for. `graph()` has one cache slot
-/// per entry; `fixtures_parse_and_are_wellformed` rejects any fixture row
-/// declaring a resolution outside this set.
+/// per entry; `validate` rejects any fixture row declaring a resolution
+/// outside this set.
 const SUPPORTED_RESOLUTIONS: [u32; 5] = [5, 10, 20, 50, 100];
 
 #[derive(Debug, Deserialize)]
@@ -42,8 +42,8 @@ struct Fixtures {
 
 /// One golden row. `expected_km`/`tol`/`tol_100km` are `Option` because the
 /// Menai baseline+blocked pair assert an inequality, not an absolute, and
-/// carry `null`. Serde cannot express "all set or all null", so
-/// `fixtures_parse_and_are_wellformed` enforces that pairing instead.
+/// carry `null`. Serde cannot express "all set or all null", so `validate`
+/// enforces that pairing instead.
 /// Documentation-only JSON fields (`name`, `real_world_km`, `source`) are
 /// ignored by serde and deliberately not modelled here.
 #[derive(Debug, Deserialize)]
@@ -58,9 +58,17 @@ struct RouteFixture {
     tol_100km: Option<f64>,
 }
 
-/// Parse `tests/fixtures/routes.json` once for the whole test binary.
-/// `include_str!` embeds the fixture at compile time, so the test does not
-/// depend on the process working directory.
+/// Parse and validate `tests/fixtures/routes.json` once for the whole test
+/// binary. `include_str!` embeds the fixture at compile time, so the test does
+/// not depend on the process working directory.
+///
+/// `validate` runs inside the `OnceLock` initialiser rather than only in the
+/// `fixtures_parse_and_are_wellformed` test, so the schema guard holds even
+/// when a single golden is run in isolation (`cargo test
+/// marseille_shanghai_suez`), where that test would never execute. Every path
+/// into the fixture data goes through here, so a malformed row fails with a
+/// message naming the offending row instead of surfacing as a confusing panic
+/// deep in `tol_for`/`within` — or, worse, as a silently weakened assertion.
 fn fixtures() -> &'static Fixtures {
     static F: OnceLock<Fixtures> = OnceLock::new();
     F.get_or_init(|| {
@@ -68,104 +76,16 @@ fn fixtures() -> &'static Fixtures {
             env!("CARGO_MANIFEST_DIR"),
             "/tests/fixtures/routes.json"
         ));
-        serde_json::from_str(raw).expect("parse tests/fixtures/routes.json")
+        let parsed = serde_json::from_str(raw).expect("parse tests/fixtures/routes.json");
+        validate(&parsed);
+        parsed
     })
 }
 
-/// Look up a golden row by key.
-fn fixture(key: &str) -> &'static RouteFixture {
-    fixtures()
-        .routes
-        .iter()
-        .find(|r| r.key == key)
-        .unwrap_or_else(|| panic!("no fixture row with key `{key}`"))
-}
-
-/// Load (and cache) the graph for a resolution. `Graph::load(n)` reads
-/// `$OUT_DIR/data/{n}km.rkyv`, which `build.rs` writes for every
-/// resolution, so every n in {5,10,20,50,100} resolves under any feature
-/// set — including `--no-default-features`.
-fn graph(res: u32) -> &'static Graph {
-    static G5: OnceLock<Graph> = OnceLock::new();
-    static G10: OnceLock<Graph> = OnceLock::new();
-    static G20: OnceLock<Graph> = OnceLock::new();
-    static G50: OnceLock<Graph> = OnceLock::new();
-    static G100: OnceLock<Graph> = OnceLock::new();
-    let slot = match res {
-        5 => &G5,
-        10 => &G10,
-        20 => &G20,
-        50 => &G50,
-        100 => &G100,
-        other => panic!("unsupported resolution {other}km"),
-    };
-    slot.get_or_init(|| Graph::load(res).unwrap_or_else(|e| panic!("Graph::load({res}): {e:?}")))
-}
-
-/// Distance for a fixture route at a given resolution, resolving the row's
-/// blocked group names to an `EdgeId` set.
-fn distance_at(row: &RouteFixture, res: u32) -> f64 {
-    let g = graph(res);
-    let blocked: HashSet<EdgeId> = if row.blocked.is_empty() {
-        HashSet::new()
-    } else {
-        g.edges_for_groups(row.blocked.iter().map(String::as_str))
-            .unwrap_or_else(|e| panic!("edges_for_groups({:?}): {e:?}", row.blocked))
-    };
-    g.route((row.from[0], row.from[1]), (row.to[0], row.to[1]), &blocked)
-        .unwrap_or_else(|e| panic!("route {} @ {res}km: {e:?}", row.key))
-        .distance_km
-}
-
-/// Relative-error tolerance check (ticket-mandated form).
-fn within(dist: f64, expected: f64, tol: f64) -> bool {
-    (dist - expected).abs() / expected < tol
-}
-
-/// Tolerance for a row at a given resolution: `tol_100km` at 100 km,
-/// else `tol`. `fixtures_parse_and_are_wellformed` requires every pinned row
-/// that sweeps 100 km to declare `tol_100km`, so for a well-formed fixture
-/// the `.or(tol)` fallback below is unreachable; it remains only so a
-/// malformed row fails loudly here instead of unwrapping `None`.
-fn tol_for(row: &RouteFixture, res: u32) -> f64 {
-    if res == 100 {
-        row.tol_100km.or(row.tol).expect("tol_100km or tol")
-    } else {
-        row.tol.expect("tol")
-    }
-}
-
-/// Assert a distance-pinned golden at every resolution it declares.
-///
-/// A zero-km golden is asserted exactly rather than by relative error:
-/// `within` divides by `expected`, so at zero it evaluates `0.0 / 0.0` =
-/// `NaN`, and every `NaN` comparison is false — the row would fail with a
-/// tolerance message that never mentions the real problem.
-/// `fixtures_parse_and_are_wellformed` guarantees a zero golden has
-/// identical endpoints, so exact `0.0` is the correct expectation.
-fn assert_golden(key: &str) {
-    let row = fixture(key);
-    let expected = row.expected_km.expect("expected_km for a pinned golden");
-    for &res in &row.resolutions {
-        let dist = distance_at(row, res);
-        if expected == 0.0 {
-            assert_eq!(
-                dist, 0.0,
-                "golden {key} @ {res}km: pinned at 0 km, got {dist}"
-            );
-            continue;
-        }
-        let tol = tol_for(row, res);
-        assert!(
-            within(dist, expected, tol),
-            "golden {key} @ {res}km: dist={dist:.1} expected={expected:.1} tol={tol}"
-        );
-    }
-}
-
-#[test]
-fn fixtures_parse_and_are_wellformed() {
-    let keys: Vec<&str> = fixtures().routes.iter().map(|r| r.key.as_str()).collect();
+/// Enforce every fixture-schema invariant the golden tests rely on. Called
+/// once from `fixtures()` on first access; panics name the offending row.
+fn validate(f: &Fixtures) {
+    let keys: Vec<&str> = f.routes.iter().map(|r| r.key.as_str()).collect();
     for k in [
         "marseille_shanghai_suez",
         "marseille_shanghai_cape",
@@ -180,14 +100,14 @@ fn fixtures_parse_and_are_wellformed() {
     // Keys must be unique — a duplicate would let one row silently shadow
     // another (lookups return the first match).
     let mut seen = HashSet::new();
-    for r in &fixtures().routes {
+    for r in &f.routes {
         assert!(
             seen.insert(r.key.as_str()),
             "duplicate fixture key `{}`",
             r.key
         );
     }
-    for r in &fixtures().routes {
+    for r in &f.routes {
         // Every row must declare at least one resolution, and only supported
         // ones — otherwise a golden test could pass without routing anything
         // (empty sweep) or panic in `graph()` (unsupported resolution).
@@ -279,6 +199,109 @@ fn fixtures_parse_and_are_wellformed() {
             r.key
         );
     }
+}
+
+/// Look up a golden row by key.
+fn fixture(key: &str) -> &'static RouteFixture {
+    fixtures()
+        .routes
+        .iter()
+        .find(|r| r.key == key)
+        .unwrap_or_else(|| panic!("no fixture row with key `{key}`"))
+}
+
+/// Load (and cache) the graph for a resolution. `Graph::load(n)` reads
+/// `$OUT_DIR/data/{n}km.rkyv`, which `build.rs` writes for every
+/// resolution, so every n in {5,10,20,50,100} resolves under any feature
+/// set — including `--no-default-features`.
+fn graph(res: u32) -> &'static Graph {
+    static G5: OnceLock<Graph> = OnceLock::new();
+    static G10: OnceLock<Graph> = OnceLock::new();
+    static G20: OnceLock<Graph> = OnceLock::new();
+    static G50: OnceLock<Graph> = OnceLock::new();
+    static G100: OnceLock<Graph> = OnceLock::new();
+    let slot = match res {
+        5 => &G5,
+        10 => &G10,
+        20 => &G20,
+        50 => &G50,
+        100 => &G100,
+        other => panic!("unsupported resolution {other}km"),
+    };
+    slot.get_or_init(|| Graph::load(res).unwrap_or_else(|e| panic!("Graph::load({res}): {e:?}")))
+}
+
+/// Distance for a fixture route at a given resolution, resolving the row's
+/// blocked group names to an `EdgeId` set.
+fn distance_at(row: &RouteFixture, res: u32) -> f64 {
+    let g = graph(res);
+    let blocked: HashSet<EdgeId> = if row.blocked.is_empty() {
+        HashSet::new()
+    } else {
+        g.edges_for_groups(row.blocked.iter().map(String::as_str))
+            .unwrap_or_else(|e| panic!("edges_for_groups({:?}): {e:?}", row.blocked))
+    };
+    g.route((row.from[0], row.from[1]), (row.to[0], row.to[1]), &blocked)
+        .unwrap_or_else(|e| panic!("route {} @ {res}km: {e:?}", row.key))
+        .distance_km
+}
+
+/// Relative-error tolerance check (ticket-mandated form).
+fn within(dist: f64, expected: f64, tol: f64) -> bool {
+    (dist - expected).abs() / expected < tol
+}
+
+/// Tolerance for a row at a given resolution: `tol_100km` at 100 km,
+/// else `tol`. `validate` requires every pinned row that sweeps 100 km to
+/// declare `tol_100km`, so for a well-formed fixture the `.or(tol)` fallback
+/// below is unreachable; it remains only so a malformed row fails loudly
+/// here instead of unwrapping `None`.
+fn tol_for(row: &RouteFixture, res: u32) -> f64 {
+    if res == 100 {
+        row.tol_100km.or(row.tol).expect("tol_100km or tol")
+    } else {
+        row.tol.expect("tol")
+    }
+}
+
+/// Assert a distance-pinned golden at every resolution it declares.
+///
+/// A zero-km golden is asserted exactly rather than by relative error:
+/// `within` divides by `expected`, so at zero it evaluates `0.0 / 0.0` =
+/// `NaN`, and every `NaN` comparison is false — the row would fail with a
+/// tolerance message that never mentions the real problem. `validate`
+/// guarantees a zero golden has identical endpoints, so exact `0.0` is the
+/// correct expectation.
+fn assert_golden(key: &str) {
+    let row = fixture(key);
+    let expected = row.expected_km.expect("expected_km for a pinned golden");
+    for &res in &row.resolutions {
+        let dist = distance_at(row, res);
+        if expected == 0.0 {
+            assert_eq!(
+                dist, 0.0,
+                "golden {key} @ {res}km: pinned at 0 km, got {dist}"
+            );
+            continue;
+        }
+        let tol = tol_for(row, res);
+        assert!(
+            within(dist, expected, tol),
+            "golden {key} @ {res}km: dist={dist:.1} expected={expected:.1} tol={tol}"
+        );
+    }
+}
+
+/// Fixture-schema gate. The invariants themselves live in `validate`, which
+/// `fixtures()` runs on first access — so they hold for every golden below,
+/// including under a filtered run like `cargo test marseille_shanghai_suez`
+/// that never reaches this test. Keeping it as a named `#[test]` means a
+/// fixture-only breakage still reports itself under its own name (and is
+/// caught even if every golden is filtered out) rather than only as
+/// collateral damage inside whichever golden happened to run first.
+#[test]
+fn fixtures_parse_and_are_wellformed() {
+    fixtures();
 }
 
 /// Marseille -> Shanghai via the Suez Canal, all five resolutions.
