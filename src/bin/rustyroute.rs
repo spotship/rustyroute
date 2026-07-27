@@ -159,7 +159,7 @@ impl Resolution {
 enum Format {
     /// Compact JSON object.
     Json,
-    /// GeoJSON FeatureCollection with one LineString feature.
+    /// `GeoJSON` `FeatureCollection` with one `LineString` feature.
     Geojson,
     /// One `lng,lat` per line.
     Line,
@@ -285,13 +285,13 @@ fn write_route(route: &Route, format: Format, resolution_km: u32) -> io::Result<
 /// Write the path as a JSON array of `[lng, lat]` positions.
 ///
 /// `Route::coordinates` is `(lat, lng)` (see `src/loader.rs`), while
-/// GeoJSON and both JSON outputs use `lng, lat`. This function is the
+/// `GeoJSON` and both JSON outputs use `lng, lat`. This function is the
 /// single place that swap happens.
 ///
 /// `min_positions` pads the array by repeating the last position until
 /// it holds at least that many entries. A self-route yields exactly one
 /// coordinate, and RFC 7946 §3.1.4 requires a `LineString` to have two
-/// or more positions, so the GeoJSON writer asks for 2 and gets a valid
+/// or more positions, so the `GeoJSON` writer asks for 2 and gets a valid
 /// degenerate zero-length line instead of invalid output.
 fn write_coordinates<W: Write>(out: &mut W, route: &Route, min_positions: usize) -> io::Result<()> {
     out.write_all(b"[")?;
