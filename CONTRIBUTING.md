@@ -106,6 +106,23 @@ licence text), at minimum validate the file format:
 - JSON — `python3 -m json.tool < renovate.json > /dev/null`
 - YAML — `python3 -c "import yaml; yaml.safe_load(open('.github/dco.yml'))"`
 
+## Benchmarks
+
+The routing hot path is covered by a criterion suite in
+`benches/route.rs` (graph load, Marseille→Shanghai open and
+Suez-blocked, the heavy 5km route, and the edge-group registry
+lookup):
+
+```sh
+cargo bench
+```
+
+Every pull request also runs those benches under CodSpeed and reports
+the delta against `main` on the PR page; a large regression on the
+routing benchmarks fails the check. If your change trades performance
+for clarity or correctness on purpose, put `[skip-perf]` in the pull
+request title and describe the regression in `CHANGELOG.md`.
+
 ## Pull request workflow
 
 1. Fork the repository (or create a branch if you have write access).
