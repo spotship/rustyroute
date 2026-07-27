@@ -182,7 +182,14 @@ fn bad_request(msg: &str) -> Response {
 #[tokio::main]
 async fn main() {
     let app = Router::new().route("/route", get(route));
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    // `PORT=0` asks the OS for a free port — that is how
+    // tests/axum_example_e2e.rs boots this example without colliding
+    // with anything already on 3000. The line below prints whichever
+    // port was actually bound.
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".into());
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
+        .await
+        .unwrap();
     println!("listening on http://{}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }
