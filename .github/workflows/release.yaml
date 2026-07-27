@@ -2,11 +2,10 @@ name: "release"
 
 # ENG-4692: cargo-dist ("dist") binary-distribution workflow.
 #
-# DORMANT UNTIL A CLI BINARY EXISTS. rustyroute has no [[bin]] target
-# today — the `cli` feature is a forward-declared placeholder (see
-# Cargo.toml:22-25, ENG-4xxx). Until that binary lands, a tag push
-# produces no binaries to attach; the release-plz workflow still
-# publishes the library to crates.io independently.
+# ACTIVE AS OF ENG-4682. The `rustyroute` binary now exists
+# (src/bin/rustyroute.rs, gated on the `cli` feature), so a tag push has
+# binaries to attach; the release-plz workflow still publishes the
+# library to crates.io independently.
 #
 # GENERATED-FILE CONTRACT: dist normally *generates* this workflow and
 # will flag hand-edits / out-of-date content on a real run. Before the
