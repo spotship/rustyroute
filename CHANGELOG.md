@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cargo codspeed`). `[skip-perf]` in a PR title bypasses the perf job.
   Uploads authenticate to CodSpeed over OpenID Connect (`id-token: write`)
   via the org's CodSpeed GitHub App — no `CODSPEED_TOKEN` secret required.
+- Onboarding documentation (ENG-4683): a full `README.md` with a
+  copy-pasteable library quickstart, a 50-line axum HTTP server
+  quickstart, the build-pipeline diagram, the `data-{N}km` feature
+  matrix, and the 13 edge groups. The axum snippet ships as a runnable
+  `examples/axum_server.rs`, and both quickstarts work on default
+  features (`data-50km`) with no data setup. Drift is pinned by tests:
+  README fences compile under `cargo test --doc`, the edge-group table
+  is compared against `EDGE_GROUPS`, and an end-to-end test boots the
+  example and asserts GeoJSON `[lng, lat]` output.
 - Automated release pipeline (ENG-4692): `release-plz` opens a
   `chore: release vX.Y.Z` PR from conventional commits and, on merge,
   publishes to crates.io and creates the GitHub release/tag;
