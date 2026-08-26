@@ -5,14 +5,14 @@
 //!    to remove a Suez edge."
 //!
 //! Strategy: rather than spawning `cargo build` as a subprocess (slow;
-//! rebuilds the SQLite amalgamation in a fresh target dir), this test
+//! rebuilds the `SQLite` amalgamation in a fresh target dir), this test
 //! drives the SAME pipeline that `build.rs` runs — the real
 //! `gpkg_io::iter_edges` reader, the real `csr::build_csr`, the real
 //! `groups::assign_groups` — against a tampered copy of a vendored
 //! .gpkg with the Suez row removed.
 //!
 //! What this proves:
-//!   - The actual SQLite reader (rusqlite) correctly returns rows from
+//!   - The actual `SQLite` reader (rusqlite) correctly returns rows from
 //!     a tampered .gpkg copy.
 //!   - When the Suez row is absent, the build pipeline panics with
 //!     the documented message naming the empty group (`suezCanal`)

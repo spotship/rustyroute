@@ -1,8 +1,8 @@
 //! ENG-4679 integration tests: `Graph::from_bytes` happy path, the
-//! full LoadError matrix (BadMagic / UnsupportedSchema /
-//! InvalidArchive), `Graph::load(N)` unknown-resolution rejection,
+//! full `LoadError` matrix (`BadMagic` / `UnsupportedSchema` /
+//! `InvalidArchive`), `Graph::load(N)` unknown-resolution rejection,
 //! count parity vs `build_csr`, and a compile-time Send+Sync
-//! assertion required by Design 019's OnceLock pattern.
+//! assertion required by Design 019's `OnceLock` pattern.
 
 #[cfg(feature = "data-50km")]
 use rustyroute::graph::{MAGIC, SCHEMA_VERSION};
@@ -60,7 +60,9 @@ fn load_unknown_resolution_seven() {
 fn load_50km_ok_via_out_dir() {
     use std::sync::Mutex;
     static ENV_LOCK: Mutex<()> = Mutex::new(());
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // SAFETY: the ENV_LOCK guard above ensures this is the only
     // thread mutating env state, satisfying Rust 2024's
     // single-threaded-mutation requirement for `remove_var`.

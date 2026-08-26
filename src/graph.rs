@@ -55,25 +55,44 @@
 /// Magic prefix written to every `.rkyv` file before the rkyv payload.
 pub const MAGIC: &[u8; 4] = b"RRG1";
 
-/// On-disk schema version. Bump on incompatible layout changes.
+/// On-disk schema version.
+///
+/// Bump on incompatible layout changes, and also on any change to a
+/// contract *value* that consumers match on — see [`GroupEntry::name`].
+/// A value rename leaves the archive byte-compatible, so nothing would
+/// reject a stale file; bumping makes it fail fast in the header check
+/// instead of surfacing later as a confusing `UnknownGroup` from
+/// [`crate::Graph::edges_for_groups`].
 pub const SCHEMA_VERSION: u32 = 1;
 
-/// Lon/lat coordinates of one graph node. f32 precision is ~3 m at 60°N
-/// — well below the 5 km grid spacing.
+/// Lon/lat coordinates of one graph node.
+///
+/// `f32` precision is ~3 m at 60°N — well below the 5 km grid spacing,
+/// so widening the fields would cost archive size for no positional
+/// gain. Note the **field order is `lng` then `lat`**, matching the
+/// source `GeoPackage` geometry; the public routing API
+/// ([`crate::Graph::route`], [`crate::Route::coordinates`]) uses the
+/// opposite `(lat, lng)` order.
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Copy, Debug)]
 #[rkyv(derive(Debug))]
 pub struct NodeCoord {
+    /// Longitude in decimal degrees, WGS84 (EPSG:4326), east-positive,
+    /// in `[-180, 180]`.
     pub lng: f32,
+    /// Latitude in decimal degrees, WGS84 (EPSG:4326), north-positive,
+    /// in `[-90, 90]`.
     pub lat: f32,
 }
 
-/// One directed half-edge in the CSR adjacency. For an undirected edge
-/// between distinct nodes A and B, two `DirectedEdge`s are emitted
-/// (A→B, B→A) sharing the same `edge_id`. Self-loops (`A == B`) are the
-/// one exception: they produce a single `DirectedEdge` with
-/// `target == source`, because the "reverse" half would just duplicate
-/// the forward one. Either way, the undirected edge has exactly one
-/// entry in `Graph::edge_endpoints` and `Graph::undirected_weights`.
+/// One directed half-edge in the CSR adjacency.
+///
+/// For an undirected edge between distinct nodes A and B, two
+/// `DirectedEdge`s are emitted (A→B, B→A) sharing the same `edge_id`.
+/// Self-loops (`A == B`) are the one exception: they produce a single
+/// `DirectedEdge` with `target == source`, because the "reverse" half
+/// would just duplicate the forward one. Either way, the undirected edge
+/// has exactly one entry in `Graph::edge_endpoints` and
+/// `Graph::undirected_weights`.
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Copy, Debug)]
 #[rkyv(derive(Debug))]
 pub struct DirectedEdge {
@@ -86,18 +105,33 @@ pub struct DirectedEdge {
     pub edge_id: u32,
 }
 
-/// One named edge group (chokepoint / passage). `edge_ids` is sorted.
+/// One named edge group (chokepoint / passage).
+///
+/// The 13 groups are baked in a fixed order by `build/groups.rs`;
+/// [`crate::Graph::edges_for_groups`] resolves names to the union of
+/// their `edge_ids`.
 #[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, Clone, Debug)]
 #[rkyv(derive(Debug))]
 pub struct GroupEntry {
+    /// Stable lowerCamelCase group identifier as written by
+    /// `build/groups.rs` (e.g. `"suezCanal"`, `"panamaCanal"`). This is
+    /// the string [`crate::Graph::edges_for_groups`] matches on, so it is
+    /// part of the on-disk contract — changing one requires a
+    /// [`SCHEMA_VERSION`] bump.
     pub name: String,
+    /// Undirected edge ids belonging to this group — indices into
+    /// [`GraphData::edge_endpoints`] and
+    /// [`GraphData::undirected_weights`], **not** into
+    /// [`GraphData::edges`]. Sorted ascending and free of duplicates.
     pub edge_ids: Vec<u32>,
 }
 
-/// The complete CSR graph for one resolution — the rkyv-serialised
-/// schema struct written to and read from `.rkyv` archives. The
-/// runtime API (`Graph`, `Graph::load`, `Graph::from_bytes`) lives in
-/// `src/loader.rs`; `GraphData` is the underlying schema.
+/// The complete CSR graph for one resolution.
+///
+/// This is the rkyv-serialised schema struct written to and read from
+/// `.rkyv` archives. The runtime API (`Graph`, `Graph::load`,
+/// `Graph::from_bytes`) lives in `src/loader.rs`; `GraphData` is the
+/// underlying schema.
 ///
 /// rkyv auto-derives `ArchivedGraphData` for this struct. See the
 /// `Graph::archived` accessor which returns `&ArchivedGraphData`.
@@ -114,7 +148,7 @@ pub struct GraphData {
     /// Endpoints of each undirected edge: `(src_node_id, dst_node_id)`.
     /// Indexed by `DirectedEdge::edge_id`.
     pub edge_endpoints: Vec<(u32, u32)>,
-    /// Weight of each undirected edge (km). Indexed by edge_id.
+    /// Weight of each undirected edge (km). Indexed by `edge_id`.
     pub undirected_weights: Vec<f32>,
     /// 13 named groups in the fixed `EDGE_GROUPS` order.
     pub groups: Vec<GroupEntry>,
