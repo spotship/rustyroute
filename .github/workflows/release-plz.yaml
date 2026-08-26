@@ -39,15 +39,15 @@ jobs:
     name: release-plz
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # release-plz walks conventional-commit history back to the
           # last release tag — needs full history, not a shallow clone.
           fetch-depth: 0
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - name: Run release-plz
-        uses: MarcoIeni/release-plz-action@v0.5
+        uses: MarcoIeni/release-plz-action@2eb1d8bcb770b4c48ccfaad919734b38b51958c9 # v0.5
         env:
           # A ref (tag/PR) created with the default GITHUB_TOKEN does NOT
           # trigger other workflows (GitHub's recursion guard) — so the
