@@ -32,6 +32,13 @@
       "groupName": "non-major dependencies ({{{datasource}}})"
     },
     {
+      "description": "All GitHub Actions updates in a single PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "separateMajorMinor": false,
+      "separateMultipleMajor": false
+    },
+    {
       "description": "Patch cooldown: 3 days",
       "matchUpdateTypes": ["patch"],
       "minimumReleaseAge": "3 days"
