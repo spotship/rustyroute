@@ -328,3 +328,51 @@ fn cargo_toml_gates_the_bin_and_keeps_clap_on_one_line() {
          (keep the clap dependency on a single line); found: {version_lines:?}"
     );
 }
+
+/// ENG-4683: the axum quickstart example needs axum + tokio as
+/// dev-dependencies, and `tokio::net::TcpListener` (used by
+/// `axum::serve`) lives behind tokio's `net` feature. The ticket's
+/// original feature list omitted `net`; relying on axum's own
+/// `tokio/net` activation would couple our example's compile to
+/// another crate's feature graph.
+///
+/// The single-line requirement is the same invariant
+/// `cargo_toml_gates_the_bin_and_keeps_clap_on_one_line` guards: a
+/// multi-line inline table would introduce a second `version`-prefixed
+/// line and break `tests/changelog.rs`'s version parser.
+#[test]
+fn cargo_toml_declares_axum_and_tokio_dev_deps_on_one_line_each() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    let toml =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+
+    let axum_lines: Vec<&str> = toml
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("axum "))
+        .collect();
+    assert_eq!(
+        axum_lines.len(),
+        1,
+        "expected exactly one single-line `axum` dependency line; found {axum_lines:?}"
+    );
+
+    let tokio_lines: Vec<&str> = toml
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("tokio "))
+        .collect();
+    assert_eq!(
+        tokio_lines.len(),
+        1,
+        "expected exactly one single-line `tokio` dependency line; found {tokio_lines:?}"
+    );
+    let tokio = tokio_lines[0];
+    for feat in ["macros", "net", "rt-multi-thread"] {
+        assert!(
+            tokio.contains(&format!("\"{feat}\"")),
+            "tokio must enable the `{feat}` feature on the same line \
+             (axum::serve needs tokio::net::TcpListener). Offending line: {tokio:?}"
+        );
+    }
+}
