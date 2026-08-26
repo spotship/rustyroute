@@ -6,7 +6,7 @@
     "helpers:pinGitHubActionDigests"
   ],
   "timezone": "UTC",
-  "schedule": ["before 4am on Monday"],
+  "schedule": ["* * * * 5"],
   "dependencyDashboard": true,
   "baseBranches": ["main"],
   "rangeStrategy": "bump",
@@ -16,7 +16,7 @@
   },
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 4am on Monday"]
+    "schedule": ["* * * * 5"]
   },
   "separateMajorMinor": true,
   "packageRules": [
@@ -30,6 +30,13 @@
       "description": "Group patch+minor per ecosystem",
       "matchUpdateTypes": ["patch", "minor"],
       "groupName": "non-major dependencies ({{{datasource}}})"
+    },
+    {
+      "description": "All GitHub Actions updates in a single PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "separateMajorMinor": false,
+      "separateMultipleMajor": false
     },
     {
       "description": "Patch cooldown: 3 days",
