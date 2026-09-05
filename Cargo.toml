@@ -44,38 +44,38 @@ path = "src/bin/rustyroute.rs"
 required-features = ["cli"]
 
 [dependencies]
-pathfinding = "4"
-rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck"] }
-thiserror = "1"
+pathfinding = "4.15.0"
+rkyv = { version = "0.8.18", default-features = false, features = ["alloc", "bytecheck"] }
+thiserror = "1.0.69"
 # MUST stay on ONE line: tests/changelog.rs:32-43 derives the crate
 # version by returning the first Cargo.toml line that trims to a
 # `version`-prefixed string, so a multi-line inline table here would
 # introduce a second candidate and can misparse the crate version.
-clap = { version = "4", features = ["derive"], optional = true }
+clap = { version = "4.6.6", features = ["derive"], optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-memmap2 = "0.9"
+memmap2 = "0.9.11"
 
 [build-dependencies]
-rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck", "std"] }
-rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
+rkyv = { version = "0.8.18", default-features = false, features = ["alloc", "bytecheck", "std"] }
+rusqlite = { version = "0.40.2", default-features = false, features = ["bundled"] }
 
 [dev-dependencies]
 # Used by tests/tampered_gpkg_panic.rs to exercise the full build pipeline
 # (real gpkg_io reader -> csr -> groups) against a tampered .gpkg copy.
 # Reuses the bundled SQLite amalgamation already built for [build-dependencies].
-rusqlite = { version = "0.32", default-features = false, features = ["bundled"] }
-tempfile = "3"
+rusqlite = { version = "0.40.2", default-features = false, features = ["bundled"] }
+tempfile = "3.27.0"
 # ENG-4681: tests/golden_routes.rs parses tests/fixtures/routes.json (the
 # golden-route table). Dev-only; MIT/Apache-2.0, already covered by
 # deny.toml's licence allowlist — no library or downstream-consumer impact.
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 # ENG-4690: CodSpeed's drop-in criterion replacement. Behaves as plain
 # criterion under `cargo bench` (incl. html_reports) and registers benches
 # with the CodSpeed harness under `cargo codspeed`. Re-exports the full
 # criterion 0.5 API, so benches/route.rs is ordinary criterion code.
-codspeed-criterion-compat = { version = "2", features = ["html_reports"] }
+codspeed-criterion-compat = { version = "2.10.1", features = ["html_reports"] }
 
 [[bench]]
 name = "route"
