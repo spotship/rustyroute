@@ -46,7 +46,7 @@ required-features = ["cli"]
 [dependencies]
 pathfinding = "4"
 rkyv = { version = "0.8", default-features = false, features = ["alloc", "bytecheck"] }
-thiserror = "1"
+thiserror = "2.0.20"
 # MUST stay on ONE line: tests/changelog.rs:32-43 derives the crate
 # version by returning the first Cargo.toml line that trims to a
 # `version`-prefixed string, so a multi-line inline table here would
