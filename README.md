@@ -88,6 +88,101 @@ Results go to stdout, diagnostics to stderr. Exit codes:
 | 3 | graph data unavailable for the requested resolution |
 | 4 | failed to write output |
 
+## HTTP quickstart
+
+rustyroute is a library: it ships no HTTP framework and takes no
+opinion on how you serve it. Wrapping it is small enough that you do
+not need anyone else's service to do it — the whole thing is one
+handler.
+
+```toml
+[dependencies]
+rustyroute = "0.1"
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+```
+
+```rust
+use std::sync::Arc;
+
+use axum::{
+    Json, Router,
+    extract::{Query, State},
+    http::StatusCode,
+    routing::get,
+};
+use rustyroute::{Graph, RouteError};
+use serde::Deserialize;
+use serde_json::{Value, json};
+
+#[derive(Deserialize)]
+struct Params {
+    from: String,
+    to: String,
+    #[serde(default)]
+    block: String,
+}
+
+fn parse_latlng(s: &str) -> Option<(f64, f64)> {
+    let (lat, lng) = s.split_once(',')?;
+    Some((lat.trim().parse().ok()?, lng.trim().parse().ok()?))
+}
+
+async fn route(
+    State(graph): State<Arc<Graph>>,
+    Query(p): Query<Params>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let bad = |m: String| (StatusCode::BAD_REQUEST, m);
+    let from = parse_latlng(&p.from).ok_or_else(|| bad("from must be \"lat,lng\"".into()))?;
+    let to = parse_latlng(&p.to).ok_or_else(|| bad("to must be \"lat,lng\"".into()))?;
+
+    let names = p.block.split(',').map(str::trim).filter(|s| !s.is_empty());
+    let blocked = graph.edges_for_groups(names).map_err(|e| bad(e.to_string()))?;
+
+    match graph.route(from, to, &blocked) {
+        Ok(r) => Ok(Json(json!({
+            "type": "Feature",
+            "properties": { "distance_km": r.distance_km },
+            "geometry": {
+                "type": "LineString",
+                // GeoJSON is [lng, lat]; rustyroute returns (lat, lng).
+                "coordinates": r.coordinates.iter().map(|(lat, lng)| [*lng, *lat]).collect::<Vec<_>>(),
+            },
+        }))),
+        Err(RouteError::NoRoute) => Err((StatusCode::UNPROCESSABLE_ENTITY, "no route".into())),
+        Err(e) => Err(bad(e.to_string())),
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let graph = Arc::new(Graph::load(50)?);
+    let app = Router::new().route("/route", get(route)).with_state(graph);
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+```
+
+`Graph::load` runs once at startup and is shared through an `Arc`. The
+graph is read-only and `route` neither mutates nor copies it, so every
+request routes against the same mmap. Blocking is resolved per
+request: all 13 groups together cost microseconds, so there is nothing
+to cache.
+
+```sh
+curl 'localhost:3000/route?from=43.30,5.37&to=31.23,121.47'
+# {"type":"Feature","properties":{"distance_km":16354.1}, ...}
+
+curl 'localhost:3000/route?from=43.30,5.37&to=31.23,121.47&block=suezCanal'
+# 25047.5 km — the same voyage routed around Africa
+```
+
+Unparseable coordinates and unknown group names return `400`; a
+destination made unreachable by blocking returns `422`.
+
 ## Attribution
 
 rustyroute is based on and inspired by Eurostat's
