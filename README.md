@@ -119,7 +119,7 @@ To confirm a yank took effect, resolve the crate fresh in a scratch project
 version, not the yanked one:
 
 ```sh
-scratch=$(mktemp -d) && cargo init --lib "$scratch" && cd "$scratch"
+scratch=$(mktemp -d) && cargo init --lib --name rustyroute_yank_check "$scratch" && cd "$scratch"
 cargo add rustyroute
 cargo tree -p rustyroute
 ```
