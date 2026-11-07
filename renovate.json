@@ -1,14 +1,27 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "This repo is PUBLIC and spotship/.github is PRIVATE, so it cannot extend the",
+    "org preset -- `github>spotship/.github` does not resolve here. This file is",
+    "hand-maintained and must be kept in step with default.json by hand.",
+    "",
+    "`:semanticCommitTypeAll(chore)` MUST STAY AFTER config:recommended, which",
+    "pulls in :semanticPrefixFixDepsChoreOthers and types the cargo `dependencies`",
+    "depType as `fix`. Listed before it, that wins and PR titles stay `fix(deps)`.",
+    "Both entries below are Renovate built-ins, which is why they resolve in a",
+    "public repo when the org preset does not."
+  ],
   "extends": [
     "config:recommended",
     "docker:pinDigests",
-    "helpers:pinGitHubActionDigests"
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommitTypeAll(chore)",
+    ":enablePreCommit"
   ],
   "timezone": "UTC",
   "schedule": ["* * * * 5"],
   "dependencyDashboard": true,
-  "baseBranches": ["main"],
+  "baseBranchPatterns": ["main"],
   "rangeStrategy": "bump",
   "vulnerabilityAlerts": {
     "enabled": true,
