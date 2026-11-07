@@ -71,12 +71,27 @@ tempfile = "3"
 # deny.toml's licence allowlist — no library or downstream-consumer impact.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# ENG-4683: examples/axum_server.rs (the README's HTTP quickstart).
+# Dev-only — no library or downstream-consumer impact, and the wasm CI
+# job builds lib-only (`cargo build`, no --all-targets) so these never
+# cross-compile. Both MUST stay on ONE line: tests/changelog.rs:32-43
+# derives the crate version from the first `version`-prefixed line, so a
+# multi-line inline table here would introduce a second candidate.
+# `net` is beyond the feature list ENG-4683 originally named: axum::serve
+# takes a tokio::net::TcpListener, which that feature gates. axum's own
+# `tokio` feature would activate it transitively, but the example names
+# the path directly, so we declare it directly.
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 # ENG-4690: CodSpeed's drop-in criterion replacement. Behaves as plain
 # criterion under `cargo bench` (incl. html_reports) and registers benches
 # with the CodSpeed harness under `cargo codspeed`. Re-exports the full
 # criterion 0.5 API, so benches/route.rs is ordinary criterion code.
 codspeed-criterion-compat = { version = "2", features = ["html_reports"] }
 
+# NOTE: every [dev-dependencies] entry must stay ABOVE this table —
+# [[bench]] starts a new table, so anything added below it would silently
+# become part of the bench target instead of a dependency.
 [[bench]]
 name = "route"
 harness = false

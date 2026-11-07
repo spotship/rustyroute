@@ -11,6 +11,13 @@
 # The downstream-consumer test sub-package is a library crate too; same
 # rationale for excluding its lockfile.
 tests/downstream_consumer/Cargo.lock
+# `/target/` above is root-anchored, so it does not cover the nested
+# sub-package. Running the sub-package's suite directly — e.g.
+# `cargo test --manifest-path tests/downstream_consumer/Cargo.toml`,
+# which is how you reproduce ENG-4683's AC3 locally — drops ~300 MB of
+# build output here. tests/downstream_consumer_smoke.rs itself redirects
+# to a target dir under $OUT_DIR and never creates this.
+tests/downstream_consumer/target/
 
 # macOS — https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
 .DS_Store

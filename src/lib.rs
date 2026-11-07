@@ -28,3 +28,11 @@ mod loader;
 pub use crate::loader::{EdgeId, Graph, LoadError, NodeId, Route, RouteError};
 
 include!(concat!(env!("OUT_DIR"), "/edge_groups.rs"));
+
+/// Compiles the `README.md` code fences as doctests so the quickstarts
+/// cannot drift from the API (ENG-4683). `#[cfg(doctest)]` keeps the
+/// README out of rendered rustdoc output — it exists only during
+/// `cargo test --doc`.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

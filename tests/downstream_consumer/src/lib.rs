@@ -26,3 +26,18 @@ pub fn exercise_public_api() -> (u32, u32, u32) {
         loaded.directed_edge_count(),
     )
 }
+
+/// ENG-4683 AC3: the README's library quickstart, run from a separate
+/// package that depends on rustyroute with default features only.
+/// Returns `(coordinate_count, distance_km)`.
+pub fn exercise_route() -> (usize, f64) {
+    use rustyroute::Graph;
+    use std::collections::HashSet;
+
+    let graph = Graph::load(50).expect("Graph::load(50) on default features");
+    // (lat, lng) — Marseille to Shanghai, same pair as the README.
+    let route = graph
+        .route((43.30, 5.37), (31.23, 121.47), &HashSet::new())
+        .expect("route Marseille -> Shanghai");
+    (route.coordinates.len(), route.distance_km)
+}
