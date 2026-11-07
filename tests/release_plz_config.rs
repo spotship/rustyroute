@@ -21,14 +21,14 @@
 //!   - Whether the crate actually publishes to crates.io.
 //!   - cargo-dist binary attachment — a separate, currently-dormant gap
 //!     (no [[bin]] target yet; see Cargo.toml:22-25 and
-//!     tests/release_dist_workflow.rs).
+//!     `tests/release_dist_workflow.rs`).
 //!
 //! No YAML/TOML parser dev-dependency — matches the convention in
 //! tests/ci_workflow.rs:36-39 and tests/audit_workflow.rs:22-27.
 //!
 //! AC mapping (spec at .ship/tasks/eng-4692-.../plan/spec.md):
-//!   AC1 -> release_plz_toml_* tests
-//!   AC2 -> release_plz_workflow_* tests
+//!   AC1 -> `release_plz_toml`_* tests
+//!   AC2 -> `release_plz_workflow`_* tests
 
 use std::fs;
 use std::path::PathBuf;

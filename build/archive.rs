@@ -2,8 +2,8 @@
 //!
 //! File layout (matches `src/graph.rs` docs):
 //!   bytes 0..4   : ASCII magic b"RRG1"
-//!   bytes 4..8   : SCHEMA_VERSION as u32 LE
-//!   bytes 8..    : rkyv bytes of ArchivedGraphData
+//!   bytes 4..8   : `SCHEMA_VERSION` as u32 LE
+//!   bytes 8..    : rkyv bytes of `ArchivedGraphData`
 
 use crate::graph::{GraphData, MAGIC, SCHEMA_VERSION};
 use std::path::Path;

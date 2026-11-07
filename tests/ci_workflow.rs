@@ -168,6 +168,71 @@ fn clippy_job_uses_deny_warnings() {
         "clippy invocation must use `--all-features` so feature-gated code is linted too. \
          Offending line: {clippy:?}"
     );
+    // ENG-4684. `#![warn(clippy::pedantic)]` in src/lib.rs reaches only
+    // the library crate, and the `[lints.clippy]` table in Cargo.toml is
+    // not consulted by a bare `cargo clippy` in the same way a
+    // command-line flag is escalated by `-D warnings`. This flag is what
+    // makes the ~120 pedantic findings in build.rs, tests/*, benches/ and
+    // src/bin/ -- all fixed or justified-allowed under ENG-4684 -- stay
+    // fixed. Drop it and every one of them silently becomes latent again.
+    assert!(
+        clippy.contains("-W clippy::pedantic"),
+        "clippy invocation must include `-W clippy::pedantic` on the same line (ENG-4684). \
+         Without it the pedantic findings that ticket resolved across build.rs, tests/, \
+         benches/ and src/bin/ stop being gated and regress silently. \
+         Offending line: {clippy:?}"
+    );
+}
+
+/// ENG-4684: nothing in the workflow names `cargo test --doc`, so the
+/// crate's fifteen library doctests -- the ticket's headline deliverable
+/// -- ride entirely on the test-matrix's `cargo test --all-features`.
+/// `cargo test` runs doctests only when it is not narrowed to specific
+/// target kinds, and `cargo llvm-cov` in the coverage job does not run
+/// them at all without `--doctests`. So if anyone ever "optimises" that
+/// line to `--tests` or `--lib`, every doctest silently stops executing
+/// and CI stays green.
+///
+/// Asserted on the `cargo test` line rather than file-wide for the same
+/// reason as `clippy_job_uses_deny_warnings`: a file-wide check would be
+/// satisfied by the `pre-commit` job's `cargo test --test pre_commit_e2e`.
+#[test]
+fn test_job_does_not_narrow_away_doctests() {
+    let wf = read_workflow();
+    // Anchored on `- run:` so the `#   - No --all-targets / cargo test:`
+    // prose in the wasm job's rationale comment is not mistaken for an
+    // invocation, and `--test ` excludes the pre-commit job's
+    // single-target `cargo test --test pre_commit_e2e`.
+    let plain_test_lines: Vec<&str> = wf
+        .lines()
+        .filter(|l| {
+            let t = l.trim_start();
+            t.starts_with("- run:") && t.contains("cargo test") && !t.contains("--test ")
+        })
+        .collect();
+    assert_eq!(
+        plain_test_lines.len(),
+        1,
+        "expected exactly one un-narrowed `cargo test` invocation in ci.yaml (the \
+         test-matrix row that carries the doctests), found {}: {plain_test_lines:?}",
+        plain_test_lines.len()
+    );
+    let carrier = plain_test_lines[0];
+    assert!(
+        carrier.contains("--all-features"),
+        "the doctest carrier must run `--all-features` so feature-gated doc examples \
+         (e.g. the `data::BYTES_50KM` ones) compile. Offending line: {carrier:?}"
+    );
+    for narrowing in ["--lib", "--tests", "--bins", "--benches", "--examples"] {
+        assert!(
+            !carrier.contains(narrowing),
+            "the `cargo test` line must not pass `{narrowing}`: narrowing it to specific \
+             target kinds stops `cargo test` from running doctests, and no other job runs \
+             them (`cargo llvm-cov` needs `--doctests`, which it is not given). The \
+             library's doctests would silently stop executing with nothing going red \
+             (ENG-4684). Offending line: {carrier:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

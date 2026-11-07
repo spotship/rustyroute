@@ -10,7 +10,7 @@
 //! `CARGO_BIN_EXE_<name>` resolve to a real executable.
 //!
 //! No JSON parser dev-dependency — same convention as
-//! tests/ci_workflow.rs and tests/release_dist_workflow.rs, which assert
+//! `tests/ci_workflow.rs` and `tests/release_dist_workflow.rs`, which assert
 //! on structure with string checks.
 
 #![cfg(feature = "cli")]
@@ -45,7 +45,7 @@ fn stderr(out: &Output) -> String {
     String::from_utf8_lossy(&out.stderr).into_owned()
 }
 
-/// AC3: default format is GeoJSON, exit 0, with the documented
+/// AC3: default format is `GeoJSON`, exit 0, with the documented
 /// properties.
 #[test]
 fn geojson_default_marseille_to_shanghai() {
@@ -199,8 +199,8 @@ fn format_json_is_compact_object() {
     );
 }
 
-/// D2: a self-route still produces valid GeoJSON — RFC 7946 requires a
-/// LineString to carry two or more positions, so the single snapped
+/// D2: a self-route still produces valid `GeoJSON` — RFC 7946 requires a
+/// `LineString` to carry two or more positions, so the single snapped
 /// position is emitted twice.
 #[test]
 fn self_route_emits_valid_two_position_linestring() {

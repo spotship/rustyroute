@@ -13,8 +13,8 @@
 //! tests/ci_workflow.rs:36-39 / tests/audit_workflow.rs:22-27.
 //!
 //! AC mapping (spec at .ship/tasks/eng-4692-.../plan/spec.md):
-//!   AC3 -> release_workflow_* tests
-//!   AC4 -> dist_workspace_toml_* tests
+//!   AC3 -> `release_workflow`_* tests
+//!   AC4 -> `dist_workspace_toml`_* tests
 
 use std::fs;
 use std::path::PathBuf;

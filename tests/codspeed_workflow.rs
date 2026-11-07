@@ -1,13 +1,13 @@
 //! Integration tests that lock in the structural invariants of
 //! `.github/workflows/codspeed.yaml` introduced by ENG-4690.
 //!
-//! CodSpeed's actual measurement + PR-comment behaviour can only be
-//! verified on GitHub Actions against the org's CodSpeed app. What IS in
+//! `CodSpeed`'s actual measurement + PR-comment behaviour can only be
+//! verified on GitHub Actions against the org's `CodSpeed` app. What IS in
 //! scope here is the small set of string-level invariants whose silent
 //! regression would neuter the perf gate: the triggers, the OIDC auth
-//! wiring, the CodSpeed action pin, the cargo-codspeed build/run steps,
+//! wiring, the `CodSpeed` action pin, the cargo-codspeed build/run steps,
 //! and the [skip-perf] escape hatch. String assertions match the
-//! convention in tests/ci_workflow.rs and tests/audit_workflow.rs.
+//! convention in `tests/ci_workflow.rs` and `tests/audit_workflow.rs`.
 
 use std::fs;
 use std::path::PathBuf;

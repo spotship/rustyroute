@@ -2,6 +2,14 @@
 //! normal test binary so `cargo test` runs them. The helpers
 //! themselves live under `build/` and are also compiled into
 //! `build.rs`; this file re-includes them via #[path].
+// ENG-4684: the flagged literals are the two endpoint coordinates of the
+// 100 km Menai Strait edge (`-5.0062109375`, `52.792460937499996`,
+// `-4.002734375`, `53.30314453125`), reproduced at full `f64` precision
+// exactly as the vendored GeoPackage yields them. Digit separators in a
+// decimal fraction obscure the value rather than clarifying it, and these
+// are transcribed values -- a reader checking them against the source
+// geometry wants them character-for-character.
+#![allow(clippy::unreadable_literal)]
 
 #[path = "../build/geometry.rs"]
 mod geometry;

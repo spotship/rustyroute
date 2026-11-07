@@ -1,12 +1,12 @@
 //! End-to-end tests for the build.rs output (ENG-4678).
 //!
-//! These tests load each archive from OUT_DIR, validate its
+//! These tests load each archive from `OUT_DIR`, validate its
 //! magic+schema-version prefix, and assert:
 //!   - all 5 archives exist and are non-empty
 //!   - bytes-per-edge sanity (≤ 64 bytes/edge)
-//!   - rkyv::access succeeds (i.e. archive is well-formed)
+//!   - `rkyv::access` succeeds (i.e. archive is well-formed)
 //!   - all 13 groups are non-empty
-//!   - EDGE_GROUPS has the expected 13 names in expected order
+//!   - `EDGE_GROUPS` has the expected 13 names in expected order
 //!   - menaiStrait counts match Python ground truth at every resolution
 //!   - self-loops are preserved (≥10 per file)
 //!
@@ -193,6 +193,11 @@ fn csr_structural_invariants() {
             archived.edges.len(),
             "{n}km: node_offsets last != edges.len()"
         );
+        // A node index is `u32` by the on-disk schema, so a node table
+        // that overflowed this cast could not have been serialised in the
+        // first place -- and the very next assertion is what would catch
+        // it if one somehow had been.
+        #[allow(clippy::cast_possible_truncation)]
         let n_nodes = archived.nodes.len() as u32;
         for e in archived.edges.iter() {
             let t = e.target.to_native();
