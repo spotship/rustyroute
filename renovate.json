@@ -9,7 +9,15 @@
     "pulls in :semanticPrefixFixDepsChoreOthers and types the cargo `dependencies`",
     "depType as `fix`. Listed before it, that wins and PR titles stay `fix(deps)`.",
     "Both entries below are Renovate built-ins, which is why they resolve in a",
-    "public repo when the org preset does not."
+    "public repo when the org preset does not.",
+    "",
+    "NO baseBranchPatterns HERE, deliberately. Renovate processes the default",
+    "branch when the key is absent, and main is this repo's default branch, so",
+    "naming it did nothing. Naming it is not free either: the list is resolved",
+    "against the live branches and a name that no longer exists is skipped with",
+    "a log line and nothing else, so a rename would stop Renovate here with no",
+    "issue and no dashboard entry. Add it only for a branch that is not the",
+    "default, or for more than one."
   ],
   "extends": [
     "config:recommended",
@@ -21,7 +29,6 @@
   "timezone": "UTC",
   "schedule": ["* * * * 5"],
   "dependencyDashboard": true,
-  "baseBranchPatterns": ["main"],
   "rangeStrategy": "bump",
   "vulnerabilityAlerts": {
     "enabled": true,
