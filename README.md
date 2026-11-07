@@ -3,7 +3,15 @@
 [![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.93.0-orange.svg)](Cargo.toml)
 
-A Rust library for shortest-path maritime route computation.
+rustyroute computes the shortest maritime route between two points on
+Earth — the path a ship actually sails around coastlines and through
+named straits and canals, not the great-circle line a naive distance
+calculation would draw straight through land. A route can be forced
+around a named chokepoint (e.g. the Suez Canal) by blocking its edge
+group, so "what if this canal were closed" is one function call.
+
+It ships as a Rust library, pre-baked at five resolutions (5–100 km),
+with an optional command-line tool for one-off queries from the shell.
 
 > **Status: pre-release.** This repository contains the EUPL-1.2
 > legal/governance scaffolding, the vendored Eurostat MARNET data, and
