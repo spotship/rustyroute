@@ -373,7 +373,8 @@ fn sha256(msg: &[u8]) -> [u8; 32] {
     padded.extend_from_slice(&bit_len.to_be_bytes());
 
     let mut h = H0;
-    for chunk in padded.chunks_exact(64) {
+    let (chunks, _) = padded.as_chunks::<64>();
+    for chunk in chunks {
         let mut w = [0u32; 64];
         for i in 0..16 {
             w[i] = u32::from_be_bytes([
