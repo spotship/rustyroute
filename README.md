@@ -90,32 +90,36 @@ Results go to stdout, diagnostics to stderr. Exit codes:
 
 ## Rollback
 
-A bad release has two independent surfaces to roll back: the crates.io
-publish (owned by release-plz) and the GitHub-release binaries + homebrew
-formula (owned by cargo-dist, triggered separately by the release tag).
-A crates.io yank does **not** touch the second surface at all.
+A release has two surfaces: the crates.io publish (owned by release-plz)
+and the cargo-dist binaries and installers (owned by `release.yaml`,
+triggered by the `vX.Y.Z` tag). A crates.io yank touches only the first.
+
+**State as of this writing.** `rustyroute` has never been published to
+crates.io, so this procedure has not been rehearsed: there is no
+published version to yank and un-yank. Rehearse it against the first
+published version and record the result here.
 
 ### crates.io (yank)
 
 Yank the bad version:
 
 ```sh
-cargo yank --version X.Y.Z rustyroute
+cargo yank rustyroute --version X.Y.Z
 ```
 
-This blocks new dependency resolutions from selecting that version. It does
+This stops new dependency resolutions selecting that version. It does
 **not** remove the version from the registry and does **not** break
-existing `Cargo.lock` files that already pin it — anyone already depending
-on the yanked version keeps building.
+existing `Cargo.lock` files that already pin it: anyone already
+depending on it keeps building.
 
 To restore it:
 
 ```sh
-cargo yank --undo --version X.Y.Z rustyroute
+cargo yank rustyroute --version X.Y.Z --undo
 ```
 
-To confirm a yank took effect, resolve the crate fresh in a scratch project
-(no existing lockfile to reuse) and check it selects the previous good
+To confirm a yank took effect, resolve the crate fresh in a scratch
+project (no lockfile to reuse) and check it selects the previous good
 version, not the yanked one:
 
 ```sh
@@ -124,29 +128,52 @@ cargo add rustyroute
 cargo tree -p rustyroute
 ```
 
-If the yanked version is the *only* version ever published, there is no
-earlier version to fall back to — the expected result in that case is a
-failed resolution, not a successful one against an older version.
+If the yanked version is the only version ever published, the expected
+result is a failed resolution, not one against an older version.
 
-### Binaries and the homebrew formula (cargo-dist)
+### What a yank leaves behind
 
-A `cargo yank` has **no effect** on the GitHub release's attached binaries
-or the homebrew formula — cargo-dist publishes those once, tied to the
-release tag, independently of crates.io. To pull a bad binary release:
+A yank reverts nothing else. Each remaining piece has its own undo:
 
-- Mark the affected GitHub release as a pre-release/draft (or delete it)
-  so its assets stop being served as the latest release.
-- Update or remove the affected formula in `spotship/homebrew-tap` so
-  `brew install` stops serving the bad version.
+| Left behind | What undoes it |
+|---|---|
+| The `vX.Y.Z` git tag | Leave it. Tags are history; deleting one breaks anyone who pinned it. The fix ships as a new tag. |
+| The release-plz version-bump and CHANGELOG commit on `main` | Do not revert it. The next release (the patch) bumps past it; add a CHANGELOG line noting the yank. |
+| The GitHub release for the tag, and any binaries attached to it | Delete the release's assets, or delete the release, so the installers stop serving them (see below). |
+| Binaries already installed on users' machines | Nothing on our side removes them. Ship a patch release and tell users to reinstall. |
+
+### Binaries and installers (cargo-dist)
+
+**Does a tag trigger `release.yaml`?** It fires on a pushed `v*.*.*` tag,
+but release-plz pushes that tag with `RELEASE_PLZ_TOKEN`, falling back to
+`GITHUB_TOKEN`. A tag pushed with `GITHUB_TOKEN` does not trigger other
+workflows. So binaries exist for a release only if the `RELEASE_PLZ_TOKEN`
+repo secret is set. Check the release's page: if it has no attached
+assets, there is nothing on this surface to roll back. In addition,
+`release.yaml` and `dist-workspace.toml` have not yet been regenerated
+with the real dist CLI (see the comments in both files), so treat the
+binary surface as not yet live.
+
+`dist-workspace.toml` enables three installers:
+
+- **shell** (`curl ... | sh`) and **powershell** (`irm ... | iex`). Both
+  download the binaries attached to the GitHub release. Deleting the bad
+  release's assets, or the release itself, is what stops them installing
+  the bad version; mark the previous good release as "latest" so they
+  fall back to it.
+- **homebrew**. **Not set up yet.** The tap repo `spotship/homebrew-tap`
+  and its `HOMEBREW_TAP_TOKEN` secret do not exist, as
+  `dist-workspace.toml` records, so no formula has ever been published
+  and there is nothing to roll back. Once the tap exists, remove or
+  revert the bad formula in it as well.
 
 ### Yank vs. patch release
 
-Yank when the published version must stop being resolved by new builds —
-it's broken, insecure, or otherwise unfit to depend on. Publish a patch
-release instead when the current version is still safe to use and the fix
-is routine — a patch gives existing and new users a better version without
-blocking anyone. When a release is both urgent and needs a fix, do both:
-yank the bad version, then publish the patch.
+Yank when the version must stop being resolved by new builds: it is
+broken, insecure, or otherwise unfit to depend on. Publish a patch
+release instead when the version is still safe and the fix is routine.
+When a release is unfit **and** a fix is ready, do both: yank, then
+publish the patch.
 
 ## Attribution
 
