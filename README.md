@@ -148,7 +148,9 @@ A yank reverts nothing else. Each remaining piece has its own undo:
 but release-plz pushes that tag with `RELEASE_PLZ_TOKEN`, falling back to
 `GITHUB_TOKEN`. A tag pushed with `GITHUB_TOKEN` does not trigger other
 workflows. So binaries exist for a release only if the `RELEASE_PLZ_TOKEN`
-repo secret is set. Check the release's page: if it has no attached
+repo secret is set. As of this writing it is not set (neither as a repo
+nor an org secret), so a release tag does not trigger `release.yaml` and
+no cargo-dist binaries exist. Check the release's page: if it has no attached
 assets, there is nothing on this surface to roll back. In addition,
 `release.yaml` and `dist-workspace.toml` have not yet been regenerated
 with the real dist CLI (see the comments in both files), so treat the
