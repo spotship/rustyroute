@@ -32,11 +32,10 @@ permissions:
 jobs:
   benchmarks:
     name: benchmarks
-    # action@v4's simulation instrument has no Ubuntu-version constraint, so
-    # this tracks ubuntu-latest. (The v2 revision of this workflow had to pin
-    # ubuntu-22.04: v2 ran benches under valgrind, which supported only
-    # Ubuntu 20.04 / 22.04.)
-    runs-on: ubuntu-latest
+    # Pinned: the CodSpeed runner (v4.19.1) exits "Unsupported system" on
+    # ubuntu-26.04, which ubuntu-latest became in late 2026. Move this
+    # forward once the runner supports the newer image.
+    runs-on: ubuntu-24.04
     # PRs that intentionally trade perf for clarity put [skip-perf] in the
     # title and document the regression in CHANGELOG (ENG-4692). The
     # event-type guard scopes [skip-perf] to pull_request events only; on
