@@ -102,7 +102,8 @@ cargo build --target wasm32-unknown-unknown --no-default-features
 cargo package --allow-dirty --list
 ```
 
-These match the flags CI runs. The wasm build needs
+These match the clippy, test, doc and wasm flags CI runs (CI also
+runs coverage, which needs no local step). The wasm build needs
 `rustup target add wasm32-unknown-unknown` once.
 
 If your change only touches non-Rust files (e.g. docs, GitHub config,
