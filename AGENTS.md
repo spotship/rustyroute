@@ -21,18 +21,14 @@ local-validation command list.
 - **This is the only Rust repo in the estate** — Ruff/ESLint/pytest
   conventions from other repos don't apply; lint/format/test here mean
   `cargo clippy` / `cargo fmt` / `cargo test`.
-- **`CONTRIBUTING.md`'s "Project status" section (the "repository
-  skeleton" paragraph) is stale.** Routing code, vendored graph data,
-  `build.rs`, and every CI workflow described below already exist and
-  are enforced. Don't take that paragraph as license to skip adding
-  routing code, and don't report CI/data as "not yet present."
 
 ## Build and test
 
 - **`Cargo.lock` is gitignored on purpose** (library crate convention)
-  — don't commit one if `cargo` generates it locally, and don't expect
-  your local resolved versions to match what CI resolved on its last
-  run; CI runs `cargo generate-lockfile` fresh in each job.
+  — don't commit one if `cargo` generates it locally. CI resolves
+  dependencies afresh on every run (the `audit.yaml` jobs run
+  `cargo generate-lockfile` before scanning), so your local resolved
+  versions need not match CI's.
 - **A plain `cargo build` does not build the `rustyroute` binary.** The
   `[[bin]]` target has `required-features = ["cli"]` specifically so
   library-only consumers never compile `clap`. Pass `--features cli`
@@ -76,19 +72,16 @@ local-validation command list.
   new dependency or native-only code path to the non-build-script
   parts of the crate, gate it the same way or the wasm smoke build
   breaks.
-- **A first `cargo build`/`cargo test` takes 60–120s** (builds bundled
+- **A first `cargo build`/`cargo test` is slow** (builds bundled
   SQLite via `rusqlite` for the build script, then compiles the graph
   for every enabled resolution). That's normal, not a hang.
 
 ## Files whose exact wording is tested, not just their structure
 
-`tests/ci_workflow.rs`, `tests/audit_workflow.rs`,
-`tests/codspeed_workflow.rs`, `tests/release_dist_workflow.rs`,
-`tests/release_plz_config.rs`, `tests/pre_commit_config.rs`, and
-`tests/changelog.rs` assert on specific strings inside, respectively,
-`.github/workflows/{ci,audit,codspeed,release}.yaml`, `deny.toml`,
-`dist-workspace.toml`, `release-plz.toml`,
-`.pre-commit-config.yaml`, and `CHANGELOG.md`. **Don't hand-edit any of
+The workflow YAML under `.github/workflows/`, `deny.toml`,
+`dist-workspace.toml`, `release-plz.toml`, `.pre-commit-config.yaml`
+and `CHANGELOG.md` are string-asserted by `tests/*_workflow.rs`,
+`tests/*_config.rs` and `tests/changelog.rs`. **Don't hand-edit any of
 those files — even a comment reword or key reorder — without running
 `cargo test` after.** A failure here is these tests doing their job
 (catching a silent weakening of a gate), not a flaky test to work
@@ -115,11 +108,7 @@ around.
 ## Commit and release conventions
 
 - Commits must be signed off (`git commit -s`) — `.github/dco.yml`
-  enforces the DCO on every commit, not just the PR as a whole.
-- PR titles follow `type(scope): summary`; Spot Ship-internal
-  contributors put the ClickUp ticket id **inside that summary**
-  (`feat(graph): ENG-1234 implement Dijkstra`), not as a trailing
-  footer the way some other conventions do it.
-- A perf regression that's an intentional trade-off goes through as
-  `[skip-perf]` in the PR title plus a `CHANGELOG.md` note — don't
-  "fix" a CodSpeed regression by weakening `benches/route.rs`.
+  enforces the DCO on every commit, merge commits included.
+- PR titles carry the ClickUp ticket id inside the summary, and an
+  intentional perf regression uses `[skip-perf]` rather than a weaker
+  `benches/route.rs`: both are spelled out in `CONTRIBUTING.md`.

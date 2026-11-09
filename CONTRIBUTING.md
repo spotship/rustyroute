@@ -7,10 +7,11 @@ request.
 
 ## Project status
 
-rustyroute is currently a **repository skeleton**. Routing algorithms,
-maritime graph data, build scripts, and CI workflows are intentionally
-not yet present. Please do not open PRs that add routing code, vendor
-graph data, or introduce CI infrastructure unless the linked issue
+rustyroute is **pre-release**. The vendored MARNET graph data, the
+`build.rs` that compiles it, `Graph::load`/`Graph::from_bytes`,
+Dijkstra routing and the CI workflows are in place; distance matrices
+and further algorithms follow in later issues. Please do not open PRs
+that add new algorithms or CI infrastructure unless the linked issue
 explicitly says that is in scope.
 
 ## Code of Conduct
