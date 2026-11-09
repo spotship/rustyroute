@@ -96,6 +96,95 @@ Results go to stdout, diagnostics to stderr. Exit codes:
 | 3 | graph data unavailable for the requested resolution |
 | 4 | failed to write output |
 
+## Rollback
+
+A release has two surfaces: the crates.io publish (owned by release-plz)
+and the cargo-dist binaries and installers (owned by `release.yaml`,
+triggered by the `vX.Y.Z` tag). A crates.io yank touches only the first.
+
+**State as of this writing.** `rustyroute` has never been published to
+crates.io, so this procedure has not been rehearsed: there is no
+published version to yank and un-yank. Rehearse it against the first
+published version and record the result here.
+
+### crates.io (yank)
+
+Yank the bad version:
+
+```sh
+cargo yank rustyroute --version X.Y.Z
+```
+
+This stops new dependency resolutions selecting that version. It does
+**not** remove the version from the registry and does **not** break
+existing `Cargo.lock` files that already pin it: anyone already
+depending on it keeps building.
+
+To restore it:
+
+```sh
+cargo yank rustyroute --version X.Y.Z --undo
+```
+
+To confirm a yank took effect, resolve the crate fresh in a scratch
+project (no lockfile to reuse) and check it selects the previous good
+version, not the yanked one:
+
+```sh
+scratch=$(mktemp -d) && cargo init --lib --name rustyroute_yank_check "$scratch" && cd "$scratch"
+cargo add rustyroute
+cargo tree -p rustyroute
+```
+
+If the yanked version is the only version ever published, the expected
+result is a failed resolution, not one against an older version.
+
+### What a yank leaves behind
+
+A yank reverts nothing else. Each remaining piece has its own undo:
+
+| Left behind | What undoes it |
+|---|---|
+| The `vX.Y.Z` git tag | Leave it. Tags are history; deleting one breaks anyone who pinned it. The fix ships as a new tag. |
+| The release-plz version-bump and CHANGELOG commit on `main` | Do not revert it. The next release (the patch) bumps past it; add a CHANGELOG line noting the yank. |
+| The GitHub release for the tag, and any binaries attached to it | Delete the release's assets, or delete the release, so the installers stop serving them (see below). |
+| Binaries already installed on users' machines | Nothing on our side removes them. Ship a patch release and tell users to reinstall. |
+
+### Binaries and installers (cargo-dist)
+
+**Does a tag trigger `release.yaml`?** It fires on a pushed `v*.*.*` tag,
+but release-plz pushes that tag with `RELEASE_PLZ_TOKEN`, falling back to
+`GITHUB_TOKEN`. A tag pushed with `GITHUB_TOKEN` does not trigger other
+workflows. So binaries exist for a release only if the `RELEASE_PLZ_TOKEN`
+repo secret is set. As of this writing it is not set (neither as a repo
+nor an org secret), so a release tag does not trigger `release.yaml` and
+no cargo-dist binaries exist. Check the release's page: if it has no attached
+assets, there is nothing on this surface to roll back. In addition,
+`release.yaml` and `dist-workspace.toml` have not yet been regenerated
+with the real dist CLI (see the comments in both files), so treat the
+binary surface as not yet live.
+
+`dist-workspace.toml` enables three installers:
+
+- **shell** (`curl ... | sh`) and **powershell** (`irm ... | iex`). Both
+  download the binaries attached to the GitHub release. Deleting the bad
+  release's assets, or the release itself, is what stops them installing
+  the bad version; mark the previous good release as "latest" so they
+  fall back to it.
+- **homebrew**. **Not set up yet.** The tap repo `spotship/homebrew-tap`
+  and its `HOMEBREW_TAP_TOKEN` secret do not exist, as
+  `dist-workspace.toml` records, so no formula has ever been published
+  and there is nothing to roll back. Once the tap exists, remove or
+  revert the bad formula in it as well.
+
+### Yank vs. patch release
+
+Yank when the version must stop being resolved by new builds: it is
+broken, insecure, or otherwise unfit to depend on. Publish a patch
+release instead when the version is still safe and the fix is routine.
+When a release is unfit **and** a fix is ready, do both: yank, then
+publish the patch.
+
 ## Attribution
 
 rustyroute is based on and inspired by Eurostat's

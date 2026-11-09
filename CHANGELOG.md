@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cargo codspeed`). `[skip-perf]` in a PR title bypasses the perf job.
   Uploads authenticate to CodSpeed over OpenID Connect (`id-token: write`)
   via the org's CodSpeed GitHub App — no `CODSPEED_TOKEN` secret required.
+- Release rollback documentation (ENG-7047): a `## Rollback` section in
+  `README.md` covering the `cargo yank`/`cargo yank --undo` commands,
+  the cargo-dist binary/homebrew surface a yank doesn't touch, the
+  yank-vs-patch-release rule, and how to confirm a yank via a fresh
+  scratch-project resolution.
 - Automated release pipeline (ENG-4692): `release-plz` opens a
   `chore: release vX.Y.Z` PR from conventional commits and, on merge,
   publishes to crates.io and creates the GitHub release/tag;
