@@ -7,8 +7,8 @@ local-validation command list.
 
 ## Repo shape, not estate shape
 
-- **Default branch is `main`, not `dev`.** Every other spotship repo
-  branches and releases off `dev`; this one doesn't have a `dev`
+- **Default branch is `main`, not `dev`.** Most spotship repos
+  branch and release off `dev`; this one doesn't have a `dev`
   branch at all. Branch from and PR against `main`.
 - **There is no `Taskfile.yml`.** Don't run `task init` / `task lint` /
   `task test` out of estate habit — they don't exist here. Use plain
@@ -18,9 +18,6 @@ local-validation command list.
   `release-plz` (conventional-commit → version bump + `CHANGELOG.md` →
   crates.io publish) plus `cargo-dist` for cross-platform binaries on
   the resulting tag. Don't look for a Node-based release step.
-- **This is the only Rust repo in the estate** — Ruff/ESLint/pytest
-  conventions from other repos don't apply; lint/format/test here mean
-  `cargo clippy` / `cargo fmt` / `cargo test`.
 
 ## Build and test
 
@@ -78,7 +75,7 @@ local-validation command list.
 
 ## Files whose exact wording is tested, not just their structure
 
-The workflow YAML under `.github/workflows/`, `deny.toml`,
+The `ci`, `audit`, `codspeed` and `release` workflows, `deny.toml`,
 `dist-workspace.toml`, `release-plz.toml`, `.pre-commit-config.yaml`
 and `CHANGELOG.md` are string-asserted by `tests/*_workflow.rs`,
 `tests/*_config.rs` and `tests/changelog.rs`. **Don't hand-edit any of
@@ -108,7 +105,7 @@ around.
 ## Commit and release conventions
 
 - Commits must be signed off (`git commit -s`) — `.github/dco.yml`
-  enforces the DCO on every commit, merge commits included.
+  enforces the DCO on every commit, not just the PR as a whole.
 - PR titles carry the ClickUp ticket id inside the summary, and an
   intentional perf regression uses `[skip-perf]` rather than a weaker
   `benches/route.rs`: both are spelled out in `CONTRIBUTING.md`.

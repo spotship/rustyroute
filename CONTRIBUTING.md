@@ -95,10 +95,15 @@ request, run:
 ```sh
 cargo fmt --check
 cargo check
-cargo clippy -- -D warnings
-cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
+cargo build --target wasm32-unknown-unknown --no-default-features
 cargo package --allow-dirty --list
 ```
+
+These match the flags CI runs. The wasm build needs
+`rustup target add wasm32-unknown-unknown` once.
 
 If your change only touches non-Rust files (e.g. docs, GitHub config,
 licence text), at minimum validate the file format:
