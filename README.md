@@ -197,6 +197,13 @@ published under EUPL-1.2 by the European Union (Eurostat). See
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). All commits must be signed off
 under the [Developer Certificate of Origin](https://developercertificate.org/).
 
+There is no `Taskfile.yml`: the `task init` / `task lint` / `task test`
+commands used in other Spot Ship repositories do not exist here.
+`pre-commit install` replaces `task init`, `cargo fmt` and `cargo clippy`
+replace `task lint`, and `cargo test` replaces `task test`. The exact
+invocations CI enforces are listed once, in the "Local validation"
+section of [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Security
 
 See [`SECURITY.md`](SECURITY.md). Do **not** report vulnerabilities via
