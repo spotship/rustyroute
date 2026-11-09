@@ -3,7 +3,8 @@
 **/*.rs.bk
 *.pdb
 
-# rustyroute is a library crate (no [[bin]], no published binary).
+# rustyroute is primarily a library crate (its CLI binary is opt-in via
+# the `cli` feature).
 # Per Cargo's guidance for libraries, Cargo.lock is not committed so that
 # downstream consumers resolve their own dependency versions:
 # https://doc.rust-lang.org/cargo/faq.html#why-do-binaries-have-cargolock-in-version-control-but-not-libraries

@@ -7,10 +7,11 @@ request.
 
 ## Project status
 
-rustyroute is currently a **repository skeleton**. Routing algorithms,
-maritime graph data, build scripts, and CI workflows are intentionally
-not yet present. Please do not open PRs that add routing code, vendor
-graph data, or introduce CI infrastructure unless the linked issue
+rustyroute is **pre-release**. The vendored MARNET graph data, the
+`build.rs` that compiles it, `Graph::load`/`Graph::from_bytes`,
+Dijkstra routing and the CI workflows are in place; distance matrices
+and further algorithms follow in later issues. Please do not open PRs
+that add new algorithms or CI infrastructure unless the linked issue
 explicitly says that is in scope.
 
 ## Code of Conduct
@@ -94,10 +95,16 @@ request, run:
 ```sh
 cargo fmt --check
 cargo check
-cargo clippy -- -D warnings
-cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
+cargo build --target wasm32-unknown-unknown --no-default-features
 cargo package --allow-dirty --list
 ```
+
+These match the clippy, test, doc and wasm flags CI runs (CI also
+runs coverage, which needs no local step). The wasm build needs
+`rustup target add wasm32-unknown-unknown` once.
 
 If your change only touches non-Rust files (e.g. docs, GitHub config,
 licence text), at minimum validate the file format:
