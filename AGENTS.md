@@ -54,14 +54,10 @@ local-validation command list.
 - **The pre-commit git hook only runs `cargo fmt --check` plus file
   hygiene — not clippy.** Clippy is wired as a manual stage
   (`pre-commit run --hook-stage manual`) because it's too slow for
-  every commit. Passing the git hook does not mean clippy is clean;
-  run `cargo clippy --all-targets --all-features -- -D warnings`
-  yourself before pushing (CI runs it with `-D warnings` and will
-  fail where a clean local `cargo test` would not have warned you).
-- **`cargo doc --no-deps --all-features` is also a hard CI gate**
-  (`RUSTDOCFLAGS="-D warnings"`), separate from clippy. A doc-comment
-  that produces an intra-doc-link warning fails CI even if the code
-  itself is warning-free.
+  every commit. Passing the git hook does not mean clippy is clean,
+  and `cargo doc` with warnings denied is a separate CI gate on top:
+  run the full `CONTRIBUTING.md` "Local validation" list before
+  pushing.
 - **The library must keep compiling for `wasm32-unknown-unknown`**
   under `--no-default-features` (CI's `wasm` job). `memmap2` and the
   mmap path in `Graph::load` are already gated to
@@ -102,10 +98,8 @@ around.
   crate standardises on `rustls`. Don't add a TLS dependency that
   pulls in openssl without raising that as its own decision first.
 
-## Commit and release conventions
+## Commits
 
-- Commits must be signed off (`git commit -s`) — `.github/dco.yml`
-  enforces the DCO on every commit, not just the PR as a whole.
-- PR titles carry the ClickUp ticket id inside the summary, and an
-  intentional perf regression uses `[skip-perf]` rather than a weaker
-  `benches/route.rs`: both are spelled out in `CONTRIBUTING.md`.
+- The DCO GitHub App checks every commit in a PR for a sign-off, so
+  commit with `git commit -s`. PR-title and `[skip-perf]`
+  rules are in `CONTRIBUTING.md`.
