@@ -10,10 +10,10 @@ local-validation command list.
 - **Default branch is `main`, not `dev`.** Most spotship repos
   branch and release off `dev`; this one doesn't have a `dev`
   branch at all. Branch from and PR against `main`.
-- **There is no `Taskfile.yml`.** Don't run `task init` / `task lint` /
-  `task test` out of estate habit — they don't exist here. Use plain
-  `cargo` commands; the full list is in `CONTRIBUTING.md`'s "Local
-  validation" section.
+- **`Taskfile.yml` has one task: `task init`** (`cargo fetch`, then
+  `pre-commit install`). Don't run `task lint` / `task test` out of
+  estate habit — they don't exist here. Use plain `cargo` commands; the
+  full list is in `CONTRIBUTING.md`'s "Local validation" section.
 - **No `package.json`, no semantic-release.** Releases are cut by
   `release-plz` (conventional-commit → version bump + `CHANGELOG.md` →
   crates.io publish) plus `cargo-dist` for cross-platform binaries on

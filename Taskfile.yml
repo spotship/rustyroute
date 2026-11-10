@@ -1,0 +1,14 @@
+# ENG-7533: the one task rustyroute defines. `task init` is the checkout
+# setup entry point shared by Spot Ship repositories; lint and test stay
+# plain `cargo` commands, listed in CONTRIBUTING.md's "Local validation".
+#
+# Cargo.lock is gitignored on purpose (library crate), so `cargo fetch` runs
+# without `--locked`; the lockfile it writes stays untracked.
+version: '3'
+
+tasks:
+  init:
+    desc: Fetch the crate's dependencies and install the pre-commit git hook
+    cmds:
+      - cargo fetch
+      - pre-commit install
