@@ -197,10 +197,11 @@ published under EUPL-1.2 by the European Union (Eurostat). See
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). All commits must be signed off
 under the [Developer Certificate of Origin](https://developercertificate.org/).
 
-There is no `Taskfile.yml`: the `task init` / `task lint` / `task test`
-commands used in other Spot Ship repositories do not exist here.
-`pre-commit install` replaces `task init`, `cargo fmt` and `cargo clippy`
-replace `task lint`, and `cargo test` replaces `task test`. The exact
+`task init` is the one [Task](https://taskfile.dev) command here: it
+fetches the crate's dependencies and installs the pre-commit hook. The
+`task lint` and `task test` commands used in other Spot Ship repositories
+do not exist here: `cargo fmt` and `cargo clippy` lint, and `cargo test`
+tests. The exact
 invocations CI enforces are listed once, in the "Local validation"
 section of [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
