@@ -1,0 +1,13 @@
+version: '3'
+
+tasks:
+  init:
+    desc: "fetch the crate's dependencies, install the pre-commit hooks"
+    # Safe to re-run: `cargo fetch` finds everything already downloaded, and
+    # `pre-commit install` rewrites the same hook. No `--locked`: Cargo.lock is
+    # gitignored on purpose (library crate), so the one `cargo fetch` writes
+    # stays untracked. Lint and test stay plain `cargo` commands; see
+    # CONTRIBUTING.md's "Local validation".
+    cmds:
+      - cargo fetch
+      - pre-commit install
