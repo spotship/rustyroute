@@ -41,4 +41,5 @@ Temporary Items
 # AI tooling artifacts
 .ship/
 .claude/
+.claude/worktrees
 .learnings/
