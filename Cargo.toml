@@ -80,3 +80,15 @@ codspeed-criterion-compat = { version = "2", features = ["html_reports"] }
 [[bench]]
 name = "route"
 harness = false
+
+# ENG-4684: package-wide pedantic baseline. `#![warn(...)]` in src/lib.rs
+# reaches ONLY the library crate, so without this table the ~120 pedantic
+# findings in build.rs, tests/*, benches/ and src/bin/ are gated solely by
+# the `-W clippy::pedantic` flag on `.github/workflows/ci.yaml:47` — invisible
+# to `.pre-commit-config.yaml`'s `cargo clippy --no-deps -- -D warnings` hook
+# and to every contributor's editor. `priority = -1` makes the group rank
+# below individual lint settings, so the per-file `#![allow(...)]` blocks and
+# site allows still win. Nursery deliberately stays library-scoped (src/lib.rs)
+# — the CI flag is pedantic-only and this table mirrors it.
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }

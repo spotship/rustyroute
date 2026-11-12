@@ -49,7 +49,9 @@ fn in_tree_50km_path() -> PathBuf {
 
 #[test]
 fn load_50km_from_env_data_dir_happy_path() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 
     // Stage a fresh tempdir with a copy of the 50km archive.
     let tmp = tempfile::tempdir().expect("create tempdir");
@@ -109,7 +111,9 @@ fn load_50km_from_env_data_dir_happy_path() {
 
 #[test]
 fn load_50km_from_env_data_dir_missing_file_reports_path() {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
 
     // Empty tempdir — env var points at it but the file is absent.
     let tmp = tempfile::tempdir().expect("create tempdir");

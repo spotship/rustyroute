@@ -44,7 +44,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: clippy
-      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::pedantic
 
   test-matrix:
     name: test (${{ matrix.os }} / ${{ matrix.toolchain }})

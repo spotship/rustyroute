@@ -3,13 +3,25 @@
 //! 1. For each of 12 known upstream `pass` values, every matching row
 //!    belongs to the corresponding public group name.
 //! 2. The 13th group `menaiStrait` is derived geometrically: any edge
-//!    whose LineString intersects the bbox
+//!    whose `LineString` intersects the bbox
 //!    `lng ∈ [-4.20, -4.00], lat ∈ [53.13, 53.30]` (closed) using the
 //!    Liang-Barsky line-vs-AABB clip test.
 //! 3. Empty groups at any resolution are a HARD ERROR — panics with a
 //!    message that names the group and resolution.
 //! 4. Unknown non-null `pass` values are a HARD ERROR — panics with the
 //!    offending value and fid.
+
+// ENG-4684: see `build/csr.rs` for why these are module-level inner
+// attributes rather than crate-root allows -- this file is compiled into
+// the build script and into the test crates that re-include it via
+// `#[path]`.
+//
+// The `usize as u32` narrowings below produce edge ids, which are `u32`
+// in the on-disk schema (`src/graph.rs::DirectedEdge::edge_id`).
+#![allow(clippy::cast_possible_truncation)]
+// These fire only in the test-crate inclusion context, where a `pub fn`
+// of this module becomes public API of a crate rooted at a test file.
+#![allow(clippy::must_use_candidate, clippy::missing_panics_doc)]
 
 use crate::build::csr::CsrBuilt;
 use crate::build::geometry::polyline_intersects_bbox;
@@ -95,8 +107,8 @@ pub fn assign_groups(raw: &[RawEdge], csr: &CsrBuilt, res_km: u32) -> Vec<GroupE
                 format!("pass=`{}`", PASS_GROUPS[i].0)
             } else {
                 format!(
-                    "menaiStrait bbox lng∈[{:.2},{:.2}] lat∈[{:.2},{:.2}]",
-                    MENAI_LNG_MIN, MENAI_LNG_MAX, MENAI_LAT_MIN, MENAI_LAT_MAX
+                    "menaiStrait bbox lng∈[{MENAI_LNG_MIN:.2},{MENAI_LNG_MAX:.2}] \
+                     lat∈[{MENAI_LAT_MIN:.2},{MENAI_LAT_MAX:.2}]"
                 )
             };
             panic!(

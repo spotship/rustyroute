@@ -2,8 +2,8 @@
 //!
 //! Authored against `codspeed-criterion-compat` (a drop-in criterion
 //! replacement): under `cargo bench` it behaves as plain criterion
-//! (with html_reports); under `cargo codspeed` it registers these
-//! benches with the CodSpeed instrumentation harness for regression
+//! (with `html_reports`); under `cargo codspeed` it registers these
+//! benches with the `CodSpeed` instrumentation harness for regression
 //! tracking on PRs.
 //!
 //! Every graph is loaded via `Graph::load(N)` — the production entry

@@ -1,4 +1,4 @@
-//! Integration tests that lock in the vendored Eurostat MARNET GeoPackage
+//! Integration tests that lock in the vendored Eurostat MARNET `GeoPackage`
 //! files and their attribution paperwork. These exist because the data IS
 //! the contract for ENG-4677 — the `build.rs` introduced in ENG-4678 and
 //! downstream consumers depend on these exact bytes. If a refactor
@@ -27,6 +27,31 @@
 //!   self-tests for inline SHA-256  -> `sha256_known_answer_empty`,
 //!                                     `sha256_known_answer_abc`,
 //!                                     `sha256_known_answer_longer`
+// ENG-4684 crate-root lint posture. All three allows exist because this
+// file transcribes FIPS 180-4 (the SHA-256 specification) so that the
+// vendored-data integrity check needs no third-party hash crate; a
+// reviewer must be able to diff the code against the published standard
+// character for character.
+//
+// `unreadable_literal` x72: `K` and `H0` are the round-constant and
+// initial-hash tables printed in FIPS 180-4 §4.2.2 and §5.3.3. Inserting
+// `_` digit separators into `0x428a2f98` makes that comparison harder,
+// and the values are not meant to be read as magnitudes.
+//
+// `many_single_char_names`: `a`..`h` are the working variables named
+// verbatim in the FIPS 180-4 §6.2.2 compression-function pseudocode.
+// Renaming them to `state_a` etc. would break the correspondence the
+// implementation is checked against.
+//
+// `items_after_statements`: `const LFS_POINTER_PREFIX` and the local
+// `use std::io::Read` sit next to the code that needs them, inside the
+// test that explains what an LFS pointer stub is. Hoisting them to the
+// crate root would separate each from its explanation.
+#![allow(
+    clippy::unreadable_literal,
+    clippy::many_single_char_names,
+    clippy::items_after_statements
+)]
 
 use std::fs;
 use std::path::PathBuf;
