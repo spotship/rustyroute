@@ -42,13 +42,34 @@ fn codspeed_workflow_triggers_pr_and_push_main() {
     );
 }
 
+/// True when a non-comment line pins `action` to `tag`: either the plain
+/// tag (`action@v5`) or a full 40-hex commit SHA followed by a `# v5`
+/// comment, the form Renovate's `helpers:pinGitHubActionDigests` writes.
+fn pins_action(wf: &str, action: &str, tag: &str) -> bool {
+    let needle = format!("{action}@");
+    wf.lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .filter_map(|l| l.split_once(needle.as_str()).map(|(_, rest)| rest))
+        .any(|rest| {
+            let (git_ref, tail) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+            git_ref == tag
+                || (git_ref.len() == 40
+                    && git_ref.bytes().all(|b| b.is_ascii_hexdigit())
+                    && tail
+                        .trim()
+                        .strip_prefix('#')
+                        .is_some_and(|c| c.trim() == tag))
+        })
+}
+
 #[test]
-fn codspeed_workflow_uses_codspeed_action_v4() {
+fn codspeed_workflow_uses_codspeed_action_v5() {
     let wf = read_workflow();
     assert!(
-        wf.contains("CodSpeedHQ/action@v4"),
-        "codspeed.yaml must pin CodSpeedHQ/action@v4 (floating major) — v4 \
-         is the first major with OpenID Connect upload auth."
+        pins_action(&wf, "CodSpeedHQ/action", "v5"),
+        "codspeed.yaml must pin CodSpeedHQ/action to major v5: either `@v5`, \
+         or a 40-hex commit SHA followed by a `# v5` comment. v4 was the \
+         first major with OpenID Connect upload auth, and later majors keep it."
     );
 }
 
