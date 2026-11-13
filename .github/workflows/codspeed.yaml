@@ -35,7 +35,7 @@ jobs:
     # Pinned: the CodSpeed runner (v4.19.1) exits "Unsupported system" on
     # ubuntu-26.04, which ubuntu-latest became in late 2026. Move this
     # forward once the runner supports the newer image.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # PRs that intentionally trade perf for clarity put [skip-perf] in the
     # title and document the regression in CHANGELOG (ENG-4692). The
     # event-type guard scopes [skip-perf] to pull_request events only; on
@@ -43,18 +43,18 @@ jobs:
     # baseline CodSpeed compares deltas against is never skipped.
     if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip-perf]') }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: codspeed
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
         with:
           tool: cargo-codspeed
       - name: Build instrumented benchmarks
         run: cargo codspeed build
       - name: Run benchmarks
-        uses: CodSpeedHQ/action@v4
+        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5
         with:
           mode: simulation
           run: cargo codspeed run
