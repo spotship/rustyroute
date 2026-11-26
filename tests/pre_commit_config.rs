@@ -240,8 +240,7 @@ fn cargo_fmt_check_hook_contract() {
         let end = lines[start + 1..]
             .iter()
             .position(|line| line.trim_start().starts_with("- id:"))
-            .map(|offset| start + 1 + offset)
-            .unwrap_or(lines.len());
+            .map_or(lines.len(), |offset| start + 1 + offset);
         let block = &lines[start..end];
 
         for needle in ["language: system", "pass_filenames: false", "types: [rust]"] {

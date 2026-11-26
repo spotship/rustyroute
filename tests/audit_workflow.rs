@@ -38,7 +38,7 @@
 //!   AC6 nightly cron 06:00 UTC opens GH issues -> `audit_workflow_cron_is_0_6_utc`
 //!                                                + `audit_workflow_grants_issues_write_for_scheduled_issues`
 //!   AC7 licence rationale + GPL exclusion note -> `deny_toml_license_rationale_comment_is_present`
-//!   AC8 tests/audit_workflow.rs passes         -> this file
+//!   AC8 `tests/audit_workflow.rs` passes         -> this file
 //!   AC9 deny.toml is the only policy file      -> `no_audit_toml_at_repo_root`
 //!   AC10 audit doesn't share ci concurrency    -> `audit_workflow_has_separate_concurrency_group`
 

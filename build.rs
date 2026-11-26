@@ -1,4 +1,4 @@
-//! ENG-4678: compile vendored Eurostat MARNET GeoPackages into rkyv
+//! ENG-4678: compile vendored Eurostat MARNET `GeoPackages` into rkyv
 //! graph archives + emit `pub const EDGE_GROUPS` for the crate root.
 //!
 //! Reads each `vendor/eurostat-marnet/marnet_plus_{N}km.gpkg`, builds

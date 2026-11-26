@@ -1,4 +1,4 @@
-//! Parse GeoPackage Binary (GPB) + WKB LineString, compute haversine
+//! Parse `GeoPackage` Binary (GPB) + WKB `LineString`, compute haversine
 //! distances, and clip line segments against an axis-aligned bbox via
 //! Liang-Barsky.
 //!
@@ -6,6 +6,21 @@
 //! byte 0 = 0x00). The parser still reads `envelope_indicator` from
 //! flags to compute the WKB offset generically — robust against any
 //! future re-vendor that uses a different envelope shape.
+
+// ENG-4684: see `build/csr.rs` for why these are module-level inner
+// attributes rather than crate-root allows -- this file is compiled into
+// the build script and into four test crates that re-include it via
+// `#[path]`.
+//
+// These fire only in the test-crate inclusion context, where a `pub fn`
+// of this module becomes public API of a crate rooted at a test file.
+// The functions are build-time geometry internals, not a published
+// surface.
+#![allow(
+    clippy::must_use_candidate,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc
+)]
 
 /// Earth radius (km). The IUGG mean radius — sufficient precision for a
 /// 5 km grid.
@@ -34,6 +49,13 @@ pub fn parse_gpb_linestring(blob: &[u8]) -> Result<Vec<(f64, f64)>, String> {
         return Err("GPB empty flag set; expected non-empty LineString".into());
     }
     let env_indicator = ((flags >> 1) & 0x07) as usize;
+    // `2 => 6, 3 => 6` are deliberately not merged into `2 | 3 => 6`.
+    // This match transcribes the GeoPackage envelope-indicator table
+    // (indicator 2 = XYZ, indicator 3 = XYM) row for row; the two shapes
+    // happen to carry the same float count but are different envelopes,
+    // and collapsing them would hide that correspondence from the next
+    // reader checking this against the spec.
+    #[allow(clippy::match_same_arms)]
     let env_floats: usize = match env_indicator {
         0 => 0,
         1 => 4,

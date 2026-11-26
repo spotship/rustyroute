@@ -1,5 +1,32 @@
-//! Dedupe LineString endpoints into a node table and build the CSR
+//! Dedupe `LineString` endpoints into a node table and build the CSR
 //! adjacency for one resolution.
+
+// ENG-4684 module-level lint posture. Inner attributes on a module FILE
+// are scoped to that module, so one edit here covers every crate this
+// file is compiled into: the build script (via `build.rs`'s `#[path]`
+// mod) and the integration tests that re-include it the same way
+// (`tests/graph_load.rs`, `tests/group_assignment.rs`,
+// `tests/tampered_gpkg_panic.rs`). The alternative -- repeating each
+// allow at those four crate roots -- drifts.
+//
+// Every `usize as u32` below narrows a node id, an edge id or a CSR row
+// pointer, all of which are `u32` in the on-disk schema
+// (`src/graph.rs`), so a table that overflowed the cast would already
+// have failed to serialise. Every `f64 as f32` narrows a coordinate or a
+// haversine weight, and `f32` is the schema's deliberate precision
+// choice (~3 m at 60°N, far below the 5 km grid).
+#![allow(clippy::cast_possible_truncation)]
+// The remaining three fire only in the test-crate inclusion context,
+// where a `pub fn` of this module becomes public API of a crate rooted
+// at a test file. These are build-time internals with exactly one
+// production caller each (`build/mod.rs::run`); documenting them as a
+// published API surface, or annotating them `#[must_use]` for callers
+// that do not exist, would be ceremony with no reader.
+#![allow(
+    clippy::must_use_candidate,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc
+)]
 
 use crate::build::geometry::polyline_length_km;
 use crate::build::gpkg::RawEdge;
@@ -12,7 +39,7 @@ pub struct CsrBuilt {
     pub edges: Vec<DirectedEdge>,
     pub edge_endpoints: Vec<(u32, u32)>,
     pub undirected_weights: Vec<f32>,
-    /// Parallel to `edge_endpoints` / `undirected_weights`: which RawEdge
+    /// Parallel to `edge_endpoints` / `undirected_weights`: which `RawEdge`
     /// each undirected edge id came from. Used by group assignment.
     pub raw_edge_index: Vec<usize>,
 }

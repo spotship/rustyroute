@@ -64,8 +64,7 @@ fn bin_on_path(bin: &str) -> bool {
     Command::new(bin)
         .arg("--version")
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .is_ok_and(|o| o.status.success())
 }
 
 fn cargo_bin() -> String {
@@ -123,8 +122,7 @@ fn cargo_subcommand_available(subcommand: &str) -> bool {
         .env("PATH", cargo_augmented_path())
         .args([subcommand, "--version"])
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .is_ok_and(|o| o.status.success())
 }
 
 /// Run a command, capture stdout+stderr, return (status, combined output).
