@@ -166,16 +166,38 @@ fn audit_workflow_has_separate_concurrency_group() {
 // audit.yaml — action versions
 // ---------------------------------------------------------------------------
 
+/// True when a non-comment line pins `action` to `tag`: either the plain
+/// tag (`action@v2`) or a full 40-hex commit SHA followed by a `# v2`
+/// comment, the form Renovate's `helpers:pinGitHubActionDigests` writes.
+fn pins_action(wf: &str, action: &str, tag: &str) -> bool {
+    let needle = format!("{action}@");
+    wf.lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .filter_map(|l| l.split_once(needle.as_str()).map(|(_, rest)| rest))
+        .any(|rest| {
+            let (git_ref, tail) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+            git_ref == tag
+                || (git_ref.len() == 40
+                    && git_ref.bytes().all(|b| b.is_ascii_hexdigit())
+                    && tail
+                        .trim()
+                        .strip_prefix('#')
+                        .is_some_and(|c| c.trim() == tag))
+        })
+}
+
 #[test]
 fn audit_workflow_uses_cargo_deny_action_v2() {
     let wf = read_workflow();
-    // Tag pinning matters: @v2 floats over v2.x.x; @main would let
-    // upstream silently change behaviour. Lock the floating major.
+    // Version pinning matters: @main would let upstream silently change
+    // behaviour. Lock the major: either the floating `@v2` tag or a
+    // commit SHA whose trailing comment names `v2` (the repo's Renovate
+    // config pins action digests, so the SHA form is the live one).
     assert!(
-        wf.contains("EmbarkStudios/cargo-deny-action@v2"),
-        "audit.yaml must pin EmbarkStudios/cargo-deny-action@v2 \
-         (floating major). A different tag breaks the ticket's \
-         action-version contract."
+        pins_action(&wf, "EmbarkStudios/cargo-deny-action", "v2"),
+        "audit.yaml must pin EmbarkStudios/cargo-deny-action to major v2: \
+         either `@v2`, or a 40-hex commit SHA followed by a `# v2` comment. \
+         A different tag breaks the ticket's action-version contract."
     );
 }
 
